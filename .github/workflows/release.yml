@@ -19,8 +19,12 @@ jobs:
             args: ""
           - platform: windows-latest
             args: ""
-          - platform: macos-latest
-            args: "--target universal-apple-darwin"
+          - platform: macos-15-intel
+            args: "--target x86_64-apple-darwin"
+            target: x86_64-apple-darwin
+          - platform: macos-14
+            args: "--target aarch64-apple-darwin"
+            target: aarch64-apple-darwin
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +46,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ startsWith(matrix.platform, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -64,7 +68,7 @@ jobs:
 
             ### Téléchargements
             - **Windows** : `.msi` ou `.exe`
-            - **macOS** : `.dmg` (universel Intel + Apple Silicon)
+            - **macOS** : `.dmg` Intel et Apple Silicon
             - **Linux** : `.deb`, `.AppImage`, `.rpm`
             - **Flatpak** : `affiche-studio.flatpak` (asset séparé)
 
@@ -100,12 +104,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create portable ZIP (macOS)
-        if: matrix.platform == 'macos-latest' && github.ref_type == 'tag'
+        if: startsWith(matrix.platform, 'macos') && github.ref_type == 'tag'
         run: |
-          cd "src-tauri/target/universal-apple-darwin/release/bundle/macos"
-          ditto -c -k --sequesterRsrc --keepParent "Affiche Studio.app" "../../../../../../Affiche-Studio-${GITHUB_REF_NAME}-macos-universal.zip"
+          cd "src-tauri/target/${{ matrix.target }}/release/bundle/macos"
+          ditto -c -k --sequesterRsrc --keepParent "Affiche Studio.app" "../../../../../../Affiche-Studio-${GITHUB_REF_NAME}-${{ matrix.target }}.zip"
           cd "../../../../../../"
-          gh release upload "${GITHUB_REF_NAME}" "Affiche-Studio-${GITHUB_REF_NAME}-macos-universal.zip" --clobber
+          gh release upload "${GITHUB_REF_NAME}" "Affiche-Studio-${GITHUB_REF_NAME}-${{ matrix.target }}.zip" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
