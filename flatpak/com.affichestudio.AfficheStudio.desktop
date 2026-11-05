@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Affiche Studio
+Comment=Générateur d'affiches assisté par IA
+Exec=affiche-studio
+Icon=com.affichestudio.AfficheStudio
+Terminal=false
+Type=Application
+Categories=Graphics;2DGraphics;
+Keywords=poster;affiche;design;ai;
+StartupWMClass=affiche-studio

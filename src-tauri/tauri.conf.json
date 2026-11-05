@@ -1,0 +1,47 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Affiche Studio",
+  "version": "0.1.0",
+  "identifier": "com.affichestudio.app",
+  "build": {
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Affiche Studio",
+        "width": 1320,
+        "height": 880,
+        "minWidth": 1000,
+        "minHeight": 680,
+        "resizable": true,
+        "center": true,
+        "theme": "Dark"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "GraphicsAndDesign",
+    "shortDescription": "Générateur d'affiches assisté par IA",
+    "longDescription": "Affiche Studio génère des affiches en HTML/CSS à partir d'un brief et de vos images, puis les exporte en PNG.",
+    "copyright": "© 2026 Unimakers",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "linux": {
+      "deb": {
+        "depends": []
+      }
+    }
+  }
+}

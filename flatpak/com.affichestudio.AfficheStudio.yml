@@ -1,0 +1,32 @@
+app-id: com.affichestudio.AfficheStudio
+runtime: org.gnome.Platform
+runtime-version: "47"
+sdk: org.gnome.Sdk
+command: affiche-studio
+
+finish-args:
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --filesystem=home
+  - --talk-name=org.freedesktop.portal.Desktop
+  - --env=WEBKIT_DISABLE_COMPOSITING_MODE=1
+
+modules:
+  - name: affiche-studio
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 affiche-studio /app/bin/affiche-studio
+      - install -Dm644 com.affichestudio.AfficheStudio.desktop /app/share/applications/com.affichestudio.AfficheStudio.desktop
+      - install -Dm644 com.affichestudio.AfficheStudio.metainfo.xml /app/share/metainfo/com.affichestudio.AfficheStudio.metainfo.xml
+      - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/com.affichestudio.AfficheStudio.png
+    sources:
+      - type: file
+        path: affiche-studio
+      - type: file
+        path: com.affichestudio.AfficheStudio.desktop
+      - type: file
+        path: com.affichestudio.AfficheStudio.metainfo.xml
+      - type: file
+        path: icon.png

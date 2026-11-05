@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Affiche Studio</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="logo.png" alt="" class="brand-logo" />
+        <div class="brand-text">
+          <span class="brand-name">AFFICHE</span>
+          <span class="brand-sub">STUDIO</span>
+        </div>
+      </div>
+
+      <button class="btn btn-accent btn-block" id="btn-new">
+        <span class="plus">+</span> Nouveau projet
+      </button>
+
+      <div class="sidebar-label">Projets</div>
+      <div class="project-list" id="project-list"></div>
+
+      <div class="sidebar-foot">
+        <button class="settings-link" id="btn-settings">
+          <span class="api-dot" id="api-dot"></span>
+          <span class="settings-text">
+            <span>Réglages API</span>
+            <small id="api-label">Non configurée</small>
+          </span>
+          <span class="chev">›</span>
+        </button>
+        <div class="version">v0.1.0</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="empty" id="empty-state">
+        <div class="empty-inner">
+          <div class="eyebrow"><span class="dot"></span> Générateur d'affiches</div>
+          <h1>Des affiches.<br /><em>Pas des templates.</em></h1>
+          <p class="empty-desc">
+            Importez vos images, décrivez ce que vous voulez. L'IA écrit une affiche
+            en HTML/CSS, vous l'ajustez, puis vous exportez en PNG haute résolution.
+          </p>
+          <div class="empty-actions">
+            <button class="btn btn-accent btn-lg" id="btn-new-2">Créer ma première affiche</button>
+            <button class="btn btn-ghost btn-lg" id="btn-settings-2">Configurer l'API</button>
+          </div>
+          <div class="formats">
+            <div class="format-chip"><strong>Story</strong><span>1080 × 1920</span></div>
+            <div class="format-chip"><strong>Carré</strong><span>1080 × 1080</span></div>
+            <div class="format-chip"><strong>A4</strong><span>2480 × 3508</span></div>
+            <div class="format-chip"><strong>A3</strong><span>3508 × 4961</span></div>
+          </div>
+        </div>
+        <div class="empty-foot">
+          <span>Propulsé par votre API compatible OpenAI</span>
+          <span class="sep"></span>
+          <span>Export PNG · HTML</span>
+        </div>
+      </section>
+
+      <section class="editor" id="editor" hidden>
+        <header class="topbar">
+          <div class="project-head">
+            <h1 id="project-name">Projet</h1>
+            <span class="project-meta" id="project-meta">1080 × 1920</span>
+          </div>
+          <div class="topbar-actions">
+            <button class="btn btn-ghost btn-sm" id="btn-delete" title="Supprimer le projet">Supprimer</button>
+            <button class="btn btn-ghost btn-sm" id="btn-export-html">Exporter HTML</button>
+            <button class="btn btn-accent btn-sm" id="btn-export-png">Exporter PNG</button>
+          </div>
+        </header>
+
+        <div class="workspace">
+          <aside class="left">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Assets</h2>
+                <button class="btn btn-mini" id="btn-import">Importer</button>
+                <input type="file" id="file-input" multiple hidden
+                       accept="image/*,.woff,.woff2,.ttf,.otf" />
+              </div>
+              <div class="asset-grid" id="asset-grid">
+                <div class="assets-empty">Images, logos, polices…</div>
+              </div>
+            </section>
+
+            <section class="panel panel-grow">
+              <div class="panel-head">
+                <h2>Brief</h2>
+                <span class="hint">⌘/Ctrl + Entrée</span>
+              </div>
+              <textarea id="prompt" placeholder="Ex. : Une affiche de précommande pour un hoodie noir brodé, fond sombre, gros titre, prix, guide des tailles, ambiance éditoriale."></textarea>
+              <div class="gen-row">
+                <button class="btn btn-accent btn-block" id="btn-generate">Générer l'affiche</button>
+              </div>
+              <div class="gen-status" id="gen-status" hidden>
+                <span class="pulse"></span>
+                <span id="gen-status-text">Connexion…</span>
+              </div>
+              <pre class="gen-log" id="gen-log" hidden></pre>
+            </section>
+          </aside>
+
+          <section class="right">
+            <div class="preview-wrap" id="preview-wrap">
+              <div class="preview-empty" id="preview-empty">
+                <div class="preview-empty-icon">▦</div>
+                <p>Votre affiche apparaîtra ici</p>
+                <span>Décrivez votre brief puis lancez la génération.</span>
+              </div>
+              <div class="preview-scaler" id="preview-scaler" hidden>
+                <iframe id="preview" title="Aperçu de l'affiche"></iframe>
+              </div>
+            </div>
+            <div class="preview-bar">
+              <span id="preview-size">—</span>
+              <span class="preview-actions">
+                <button class="link-btn" id="btn-reload">Rafraîchir l'aperçu</button>
+              </span>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Réglages API -->
+  <div class="modal" id="modal-settings" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2>Réglages API</h2>
+          <p>N'importe quelle API compatible OpenAI : OpenAI, OpenRouter, Groq, DeepSeek, Ollama…</p>
+        </div>
+        <button class="icon-btn" data-close="modal-settings">✕</button>
+      </div>
+      <form id="settings-form">
+        <label class="field">
+          <span>Base URL</span>
+          <input type="url" id="set-base-url" placeholder="https://api.openai.com/v1" required />
+        </label>
+        <label class="field">
+          <span>Modèle</span>
+          <input type="text" id="set-model" placeholder="gpt-4o-mini" required />
+        </label>
+        <label class="field">
+          <span>Clé API</span>
+          <input type="password" id="set-api-key" placeholder="sk-…" autocomplete="off" />
+          <small id="key-hint">Laissez vide pour conserver la clé actuelle.</small>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="set-remember" />
+          <span>Mémoriser la clé sur cet appareil</span>
+        </label>
+        <p class="security-note">
+          Sans mémorisation, la clé reste en mémoire le temps de la session.
+          Avec, elle est stockée dans le dossier de configuration de l'application
+          avec des permissions restreintes.
+        </p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="btn-clear-key">Effacer la clé</button>
+          <button type="submit" class="btn btn-accent">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Nouveau projet -->
+  <div class="modal" id="modal-project" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2>Nouveau projet</h2>
+          <p>Choisissez un nom et un format.</p>
+        </div>
+        <button class="icon-btn" data-close="modal-project">✕</button>
+      </div>
+      <form id="project-form">
+        <label class="field">
+          <span>Nom du projet</span>
+          <input type="text" id="proj-name" placeholder="Hoodie Officiel — Drop 01" required />
+        </label>
+        <label class="field">
+          <span>Format</span>
+          <select id="proj-format">
+            <option value="1080x1920">Story — 1080 × 1920</option>
+            <option value="1080x1080">Carré — 1080 × 1080</option>
+            <option value="2480x3508">A4 — 2480 × 3508 (300 dpi)</option>
+            <option value="3508x4961">A3 — 3508 × 4961 (300 dpi)</option>
+            <option value="custom">Personnalisé…</option>
+          </select>
+        </label>
+        <div class="custom-size" id="custom-size" hidden>
+          <label class="field">
+            <span>Largeur (px)</span>
+            <input type="number" id="proj-width" value="1080" min="200" max="8000" />
+          </label>
+          <label class="field">
+            <span>Hauteur (px)</span>
+            <input type="number" id="proj-height" value="1920" min="200" max="8000" />
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close="modal-project">Annuler</button>
+          <button type="submit" class="btn btn-accent">Créer le projet</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden>
+    <span id="toast-text"></span>
+    <button id="toast-action" hidden>Ouvrir</button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

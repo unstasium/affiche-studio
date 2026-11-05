@@ -1,0 +1,9 @@
+target/
+node_modules/
+dist/*.map
+.DS_Store
+*.log
+src-tauri/gen/
+src-tauri/target/
+.idea/
+.vscode/

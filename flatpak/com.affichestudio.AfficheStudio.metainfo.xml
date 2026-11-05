@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.affichestudio.AfficheStudio</id>
+  <name>Affiche Studio</name>
+  <summary>Générateur d'affiches assisté par IA</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>
+      Affiche Studio génère des affiches en HTML/CSS à partir d'un brief et de vos
+      images, puis les exporte en PNG haute résolution. Compatible avec toute API
+      de génération compatible OpenAI.
+    </p>
+    <ul>
+      <li>Projets locaux, formats Story, Carré, A4 et A3</li>
+      <li>Import d'images, logos et polices</li>
+      <li>Aperçu live et export PNG / HTML</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">com.affichestudio.AfficheStudio.desktop</launchable>
+  <url type="homepage">https://github.com/unstasium/affiche-studio</url>
+  <developer_name>Affiche Studio contributors</developer_name>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.1.0" date="2026-11-05" />
+  </releases>
+</component>
