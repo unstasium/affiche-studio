@@ -1,6 +1,7 @@
 use futures_util::StreamExt;
 use serde_json::{json, Value};
 
+use crate::document::Document;
 use crate::project::ProjectMeta;
 
 pub struct LlmConfig {
@@ -11,77 +12,130 @@ pub struct LlmConfig {
     pub session_id: String,
 }
 
-fn system_prompt(width: u32, height: u32) -> String {
+fn system_prompt(width: u32, height: u32, language: &str) -> String {
+    let lang = match language {
+        "en" => "anglais",
+        "es" => "espagnol",
+        _ => "français",
+    };
     format!(
-        r#"Tu es Affiche Studio, un directeur artistique senior spécialisé dans les affiches de streetwear et d'événements. Tu produis des affiches en HTML/CSS, pas des images.
+        r##"Tu es Affiche Studio, un directeur artistique senior spécialisé dans les affiches de streetwear, d'événements et de marques. Tu ne produis pas d'images : tu produis un document de calques JSON qui sera rendu en HTML/CSS.
 
 RÈGLES DE SORTIE — IMPÉRATIVES :
-- Réponds UNIQUEMENT avec un bloc de code ```html ... ``` contenant un document HTML complet.
-- Aucun texte avant ou après le bloc.
-- Le document doit être autonome : CSS dans <style>, aucun JavaScript.
-- La page fait exactement {width}px de large et {height}px de haut. body {{ margin:0; width:{width}px; height:{height}px; overflow:hidden; }}
-- N'utilise que les images fournies, avec des chemins relatifs de la forme assets/<nom-du-fichier>. N'invente jamais de chemin d'image.
-- Les polices Google Fonts sont autorisées via <link>, mais prévois une pile de secours système.
-- Tout le texte doit être en français, sauf demande contraire explicite.
-- Soigne la hiérarchie typographique, les marges, l'alignement et la lisibilité à petite taille.
-- L'affiche doit être équilibrée et professionnelle, jamais un simple empilement de blocs.
+- Réponds UNIQUEMENT avec un bloc ```json ... ``` contenant le document complet. Aucun texte avant ou après.
+- Le canvas fait exactement {width}px de large et {height}px de haut.
+- Tous les textes de l'affiche doivent être en {lang}.
+- Les calques sont empilés du plus bas au plus haut (le dernier est au-dessus).
+- Chaque calque reste dans les limites du canvas. Laisse des marges généreuses.
+- N'invente jamais de chemin d'image : utilise uniquement les fichiers de la liste fournie.
 
-Style : éditorial, contrasté, contemporain. Évite les dégradés violets génériques et les emojis."#
+SCHÉMA :
+{{
+  "background": "#0b0b0e ou linear-gradient(...)",
+  "layers": [
+    {{
+      "type": "text",
+      "name": "Titre",
+      "x": 64, "y": 120, "w": 952, "h": 220,
+      "rotation": 0, "opacity": 1,
+      "text": "HOODIE",
+      "style": {{
+        "fontFamily": "Anton", "fontSize": 198, "fontWeight": 400,
+        "fontStyle": "normal", "color": "#f3f3fc",
+        "align": "left", "valign": "top",
+        "lineHeight": 0.9, "letterSpacing": 0,
+        "textTransform": "uppercase", "padding": 0,
+        "background": "", "radius": 0
+      }}
+    }},
+    {{
+      "type": "image",
+      "name": "Produit face",
+      "x": 120, "y": 700, "w": 460, "h": 640,
+      "rotation": 0, "opacity": 1,
+      "src": "hoodie.png", "fit": "contain", "radius": 0
+    }},
+    {{
+      "type": "shape",
+      "name": "Bandeau",
+      "x": 0, "y": 1600, "w": 1080, "h": 140,
+      "rotation": 0, "opacity": 1,
+      "shape": "rect", "fill": "#cd4c51",
+      "stroke": "", "strokeWidth": 0, "radius": 24
+    }}
+  ]
+}}
+
+Polices disponibles : Anton, Archivo Black, Bebas Neue, Oswald, Inter, DM Sans, Space Grotesk, Manrope, Instrument Serif, Playfair Display, Libre Baskerville, JetBrains Mono.
+
+Si un document existant est fourni, tu dois le MODIFIER : conserve les ids et tout ce qui n'est pas concerné par la demande. Sinon, crée un document entièrement nouveau, équilibré et professionnel."##
     )
 }
 
 pub fn build_messages(
     meta: &ProjectMeta,
+    document: Option<&Document>,
+    selected: &[String],
     assets: &[String],
-    palette: &[String],
-    prompt: &str,
-    previous_html: &str,
+    instruction: &str,
+    regenerate: bool,
 ) -> Vec<Value> {
     let mut user = String::new();
     user.push_str(&format!("Projet : {}\n", meta.name));
     user.push_str(&format!(
-        "Format : {} × {} px (portrait)\n",
-        meta.width, meta.height
+        "Format : {} × {} px\nLangue de l'affiche : {}\n",
+        meta.width,
+        meta.height,
+        match meta.language.as_str() {
+            "en" => "anglais",
+            "es" => "espagnol",
+            _ => "français",
+        }
     ));
-    if !palette.is_empty() {
-        user.push_str(&format!("Palette imposée : {}\n", palette.join(", ")));
-    } else {
-        user.push_str("Palette : libre, mais cohérente et limitée à 4–5 couleurs.\n");
+    if !meta.palette.is_empty() {
+        user.push_str(&format!("Palette imposée : {}\n", meta.palette.join(", ")));
     }
     if assets.is_empty() {
-        user.push_str("Assets : aucun. Travaille en typographie pure.\n");
+        user.push_str("Assets : aucun. Travaille en typographie et formes.\n");
     } else {
-        user.push_str("Assets disponibles (chemins relatifs) :\n");
+        user.push_str("Assets disponibles :\n");
         for asset in assets {
-            user.push_str(&format!("- assets/{asset}\n"));
+            user.push_str(&format!("- {asset}\n"));
         }
     }
-    user.push_str("\nBrief :\n");
-    user.push_str(prompt.trim());
+    if !selected.is_empty() {
+        user.push_str(&format!(
+            "Calques sélectionnés par l'utilisateur : {}\n",
+            selected.join(", ")
+        ));
+    }
+    user.push_str("\nDemande :\n");
+    user.push_str(instruction.trim());
     user.push('\n');
 
-    if !previous_html.trim().is_empty() {
-        let mut prev = previous_html.trim().to_string();
-        if prev.len() > 60_000 {
-            prev.truncate(60_000);
+    if !regenerate {
+        if let Some(document) = document {
+            let serialized = serde_json::to_string(document).unwrap_or_default();
+            let mut serialized = serialized;
+            if serialized.len() > 120_000 {
+                serialized.truncate(120_000);
+            }
+            user.push_str("\nDocument actuel à modifier (conserve les ids et l'existant) :\n");
+            user.push_str("```json\n");
+            user.push_str(&serialized);
+            user.push_str("\n```\n");
         }
-        user.push_str(
-            "\nVersion actuelle de l'affiche (modifie-la pour répondre au brief, conserve ce qui fonctionne) :\n",
-        );
-        user.push_str("```html\n");
-        user.push_str(&prev);
-        user.push_str("\n```\n");
     }
 
     vec![
-        json!({"role":"system","content": system_prompt(meta.width, meta.height)}),
+        json!({"role":"system","content": system_prompt(meta.width, meta.height, &meta.language)}),
         json!({"role":"user","content": user}),
     ]
 }
 
-fn extract_html(raw: &str) -> String {
+fn extract_json(raw: &str) -> String {
     let text = raw.trim();
-    if let Some(start) = text.find("```html") {
+    if let Some(start) = text.find("```json") {
         let after = &text[start + 7..];
         if let Some(end) = after.find("```") {
             return after[..end].trim().to_string();
@@ -89,17 +143,16 @@ fn extract_html(raw: &str) -> String {
     }
     if let Some(start) = text.find("```") {
         let after = &text[start + 3..];
-        let after = after.strip_prefix("HTML").unwrap_or(after);
         if let Some(end) = after.find("```") {
             return after[..end].trim().to_string();
         }
     }
+    if let (Some(start), Some(end)) = (text.find('{'), text.rfind('}')) {
+        if end > start {
+            return text[start..=end].to_string();
+        }
+    }
     text.to_string()
-}
-
-fn looks_like_html(html: &str) -> bool {
-    let lowered = html.to_ascii_lowercase();
-    lowered.contains("<html") && lowered.contains("<body")
 }
 
 pub async fn generate<F>(
@@ -107,7 +160,7 @@ pub async fn generate<F>(
     cfg: &LlmConfig,
     messages: Vec<Value>,
     on_chunk: F,
-) -> Result<String, String>
+) -> Result<Document, String>
 where
     F: Fn(&str),
 {
@@ -117,10 +170,7 @@ where
         );
     }
 
-    let url = format!(
-        "{}/chat/completions",
-        cfg.base_url.trim_end_matches('/')
-    );
+    let url = format!("{}/chat/completions", cfg.base_url.trim_end_matches('/'));
     let mut body = json!({
         "model": cfg.model,
         "messages": messages,
@@ -192,7 +242,7 @@ where
         }
     }
 
-    if accumulated.is_empty() {
+    if accumulated.trim().is_empty() {
         if let Ok(value) = serde_json::from_str::<Value>(&raw_all) {
             if let Some(content) = value["choices"][0]["message"]["content"].as_str() {
                 accumulated.push_str(content);
@@ -205,12 +255,16 @@ where
         return Err("Le modèle n'a renvoyé aucun contenu.".into());
     }
 
-    let html = extract_html(&accumulated);
-    if !looks_like_html(&html) {
-        return Err(
-            "Le modèle n'a pas renvoyé un document HTML complet. Reformulez le brief ou changez de modèle."
-                .into(),
-        );
+    let payload = extract_json(&accumulated);
+    let value: Value = serde_json::from_str(&payload)
+        .map_err(|e| format!("Le modèle n'a pas renvoyé un JSON valide : {e}"))?;
+    let value = value.get("document").cloned().unwrap_or(value);
+
+    let mut document: Document = serde_json::from_value(value)
+        .map_err(|e| format!("Document de calques invalide : {e}"))?;
+    document.normalize();
+    if document.layers.is_empty() {
+        return Err("Le modèle n'a produit aucun calque. Reformulez le brief.".into());
     }
-    Ok(html)
+    Ok(document)
 }

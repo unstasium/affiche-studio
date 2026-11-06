@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Affiche Studio</title>
+  <link rel="stylesheet" href="fonts.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -17,220 +18,322 @@
         </div>
       </div>
 
-      <button class="btn btn-accent btn-block" id="btn-new">
-        <span class="plus">+</span> Nouveau projet
-      </button>
+      <button class="btn btn-accent btn-block" id="btn-new" data-i18n="newProject"></button>
 
-      <div class="sidebar-label">Projets</div>
+      <div class="search">
+        <span class="search-icon">⌕</span>
+        <input id="project-search" data-i18n-placeholder="searchProjects" autocomplete="off" />
+      </div>
+
+      <div class="sidebar-label" data-i18n="projects"></div>
       <div class="project-list" id="project-list"></div>
 
       <div class="sidebar-foot">
-        <button class="settings-link" id="btn-settings">
+        <button class="side-action" id="btn-templates"><span>▦</span><span data-i18n="templates"></span></button>
+        <button class="side-action" id="btn-settings">
           <span class="api-dot" id="api-dot"></span>
-          <span class="settings-text">
-            <span>Réglages API</span>
-            <small id="api-label">Non configurée</small>
+          <span class="side-action-text">
+            <span data-i18n="apiSettings"></span>
+            <small id="api-label"></small>
           </span>
           <span class="chev">›</span>
         </button>
-        <div class="version">v1.0.0</div>
+        <div class="version" id="version-label"></div>
       </div>
     </aside>
 
     <main class="main">
       <section class="empty" id="empty-state">
         <div class="empty-inner">
-          <div class="eyebrow"><span class="dot"></span> Générateur d'affiches</div>
-          <h1>Des affiches.<br /><em>Pas des templates.</em></h1>
-          <p class="empty-desc">
-            Importez vos images, décrivez ce que vous voulez. L'IA écrit une affiche
-            en HTML/CSS, vous l'ajustez, puis vous exportez en PNG haute résolution.
-          </p>
+          <div class="eyebrow"><span class="dot"></span><span data-i18n="tagline"></span></div>
+          <h1><span data-i18n="emptyTitle1"></span><br /><em data-i18n="emptyTitle2"></em></h1>
+          <p class="empty-desc" data-i18n="emptyDesc"></p>
           <div class="empty-actions">
-            <button class="btn btn-accent btn-lg" id="btn-new-2">Créer ma première affiche</button>
-            <button class="btn btn-ghost btn-lg" id="btn-settings-2">Configurer l'API</button>
+            <button class="btn btn-accent btn-lg" id="btn-new-2" data-i18n="emptyCta"></button>
+            <button class="btn btn-ghost btn-lg" id="btn-templates-2" data-i18n="templates"></button>
           </div>
-          <div class="formats">
-            <div class="format-chip"><strong>Story</strong><span>1080 × 1920</span></div>
-            <div class="format-chip"><strong>Carré</strong><span>1080 × 1080</span></div>
-            <div class="format-chip"><strong>A4</strong><span>2480 × 3508</span></div>
-            <div class="format-chip"><strong>A3</strong><span>3508 × 4961</span></div>
-          </div>
-        </div>
-        <div class="empty-foot">
-          <span>Propulsé par votre API compatible OpenAI</span>
-          <span class="sep"></span>
-          <span>Export PNG · HTML</span>
+          <div class="empty-kbd" id="empty-kbd"></div>
         </div>
       </section>
 
-      <section class="editor" id="editor" hidden>
+      <section class="workspace" id="workspace" hidden>
         <header class="topbar">
           <div class="project-head">
-            <h1 id="project-name">Projet</h1>
-            <span class="project-meta" id="project-meta">1080 × 1920</span>
+            <h1 id="project-name"></h1>
+            <button class="badge" id="project-format"></button>
           </div>
           <div class="topbar-actions">
-            <button class="btn btn-ghost btn-sm" id="btn-delete" title="Supprimer le projet">Supprimer</button>
-            <button class="btn btn-ghost btn-sm" id="btn-export-html">Exporter HTML</button>
-            <button class="btn btn-accent btn-sm" id="btn-export-png">Exporter PNG</button>
+            <div class="history-actions">
+              <button class="icon-btn" id="btn-undo" data-i18n-title="undo">↶</button>
+              <button class="icon-btn" id="btn-redo" data-i18n-title="redo">↷</button>
+            </div>
+            <div class="zoom">
+              <button class="icon-btn" id="zoom-out">−</button>
+              <span id="zoom-label">100%</span>
+              <button class="icon-btn" id="zoom-in">+</button>
+              <button class="icon-btn" id="zoom-fit" data-i18n-title="fit">⤢</button>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="btn-versions" data-i18n="versions"></button>
+            <button class="btn btn-accent btn-sm" id="btn-export" data-i18n="export"></button>
           </div>
         </header>
 
-        <div class="workspace">
-          <aside class="left">
-            <section class="panel">
-              <div class="panel-head">
-                <h2>Assets</h2>
-                <button class="btn btn-mini" id="btn-import">Importer</button>
-                <input type="file" id="file-input" multiple hidden
-                       accept="image/*,.woff,.woff2,.ttf,.otf" />
-              </div>
-              <div class="asset-grid" id="asset-grid">
-                <div class="assets-empty">Images, logos, polices…</div>
-              </div>
-            </section>
-
-            <section class="panel panel-grow">
-              <div class="panel-head">
-                <h2>Brief</h2>
-                <span class="hint">⌘/Ctrl + Entrée</span>
-              </div>
-              <textarea id="prompt" placeholder="Ex. : Une affiche de précommande pour un hoodie noir brodé, fond sombre, gros titre, prix, guide des tailles, ambiance éditoriale."></textarea>
-              <div class="gen-row">
-                <button class="btn btn-accent btn-block" id="btn-generate">Générer l'affiche</button>
-              </div>
-              <div class="gen-status" id="gen-status" hidden>
-                <span class="pulse"></span>
-                <span id="gen-status-text">Connexion…</span>
-              </div>
-              <pre class="gen-log" id="gen-log" hidden></pre>
-            </section>
-          </aside>
-
-          <section class="right">
-            <div class="preview-wrap" id="preview-wrap">
-              <div class="preview-empty" id="preview-empty">
-                <div class="preview-empty-icon">▦</div>
-                <p>Votre affiche apparaîtra ici</p>
-                <span>Décrivez votre brief puis lancez la génération.</span>
-              </div>
-              <div class="preview-scaler" id="preview-scaler" hidden>
-                <iframe id="preview" title="Aperçu de l'affiche"></iframe>
-              </div>
-            </div>
-            <div class="preview-bar">
-              <span id="preview-size">—</span>
-              <span class="preview-actions">
-                <button class="link-btn" id="btn-reload">Rafraîchir l'aperçu</button>
-              </span>
-            </div>
-          </section>
+        <div class="stage" id="stage">
+          <div class="canvas-shell" id="canvas-shell">
+            <div class="canvas" id="canvas"></div>
+            <div class="overlay" id="overlay"></div>
+            <div class="guides-layer" id="guides"></div>
+          </div>
         </div>
+
+        <footer class="statusbar">
+          <span id="status-size"></span>
+          <span class="status-hint" data-i18n="editorHint"></span>
+          <span id="save-state" class="save-state"></span>
+        </footer>
       </section>
     </main>
-  </div>
 
-  <!-- Réglages API -->
-  <div class="modal" id="modal-settings" hidden>
-    <div class="modal-card">
-      <div class="modal-head">
-        <div>
-          <h2>Réglages API</h2>
-          <p>N'importe quelle API compatible OpenAI : OpenAI, OpenRouter, Groq, DeepSeek, Ollama…</p>
-        </div>
-        <button class="icon-btn" data-close="modal-settings">✕</button>
+    <aside class="inspector" id="inspector">
+      <div class="tabs" id="tabs">
+        <button class="tab active" data-tab="chat" data-i18n="chat"></button>
+        <button class="tab" data-tab="layers" data-i18n="layers"></button>
+        <button class="tab" data-tab="style" data-i18n="style"></button>
       </div>
-      <form id="settings-form">
-        <label class="field">
-          <span>Base URL</span>
-          <input type="url" id="set-base-url" placeholder="https://api.openai.com/v1" required />
-        </label>
-        <label class="field">
-          <span>Modèle</span>
-          <input type="text" id="set-model" placeholder="gpt-4o-mini" required />
-        </label>
-        <label class="field">
-          <span>Effort de raisonnement</span>
-          <select id="set-reasoning">
-            <option value="">Défaut du fournisseur</option>
-            <option value="low">low — rapide / économique</option>
-            <option value="medium">medium</option>
-            <option value="high">high</option>
-            <option value="max">max</option>
-          </select>
-          <small>OpenCode + DeepSeek V4.1 Flash : choisir « low ».</small>
-        </label>
-        <label class="field">
-          <span>Clé API</span>
-          <input type="password" id="set-api-key" placeholder="sk-…" autocomplete="off" />
-          <small id="key-hint">Laissez vide pour conserver la clé actuelle.</small>
-        </label>
-        <label class="check">
-          <input type="checkbox" id="set-remember" />
-          <span>Mémoriser la clé sur cet appareil</span>
-        </label>
-        <p class="security-note">
-          Sans mémorisation, la clé reste en mémoire le temps de la session.
-          Avec, elle est stockée dans le dossier de configuration de l'application
-          avec des permissions restreintes.
-        </p>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-ghost" id="btn-clear-key">Effacer la clé</button>
-          <button type="submit" class="btn btn-accent">Enregistrer</button>
+
+      <section class="tab-panel active" id="tab-chat">
+        <div class="chat-scroll" id="chat-scroll">
+          <div class="chat-empty" id="chat-empty">
+            <div class="chat-empty-icon">✳</div>
+            <p data-i18n="chatEmptyTitle"></p>
+            <span data-i18n="chatEmptyDesc"></span>
+            <div class="suggestions" id="chat-suggestions"></div>
+          </div>
+          <div class="chat-messages" id="chat-messages"></div>
         </div>
-      </form>
-    </div>
+        <div class="chat-selection" id="chat-selection" hidden></div>
+        <div class="chat-compose">
+          <textarea id="chat-input" rows="3" data-i18n-placeholder="chatPlaceholder"></textarea>
+          <div class="chat-actions">
+            <button class="btn btn-ghost btn-sm" id="btn-regenerate" data-i18n="regenerate"></button>
+            <button class="btn btn-accent btn-sm" id="btn-send" data-i18n="send"></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-layers">
+        <div class="panel-toolbar">
+          <button class="btn btn-mini" data-add="text" data-i18n="addText"></button>
+          <button class="btn btn-mini" data-add="image" data-i18n="addImage"></button>
+          <button class="btn btn-mini" data-add="shape" data-i18n="addShape"></button>
+        </div>
+        <div class="assets-strip">
+          <div class="assets-strip-head"><span data-i18n="assets"></span><button class="btn btn-mini" id="btn-import-assets" data-i18n="importAssets"></button></div>
+          <div class="assets-strip-list" id="panel-assets"></div>
+        </div>
+        <div class="layers-list" id="layers-list"></div>
+        <div class="panel-footer">
+          <button class="btn btn-mini" id="btn-group" data-i18n="group"></button>
+          <button class="btn btn-mini" id="btn-ungroup" data-i18n="ungroup"></button>
+          <button class="btn btn-mini" id="btn-duplicate" data-i18n="duplicate"></button>
+          <button class="btn btn-mini danger" id="btn-delete-layer" data-i18n="delete"></button>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-style">
+        <div class="style-scroll" id="style-panel"></div>
+      </section>
+    </aside>
   </div>
 
-  <!-- Nouveau projet -->
+  <!-- New project -->
   <div class="modal" id="modal-project" hidden>
-    <div class="modal-card">
+    <div class="modal-card wide">
       <div class="modal-head">
-        <div>
-          <h2>Nouveau projet</h2>
-          <p>Choisissez un nom et un format.</p>
-        </div>
+        <div><h2 data-i18n="newProject"></h2><p data-i18n="newProjectDesc"></p></div>
         <button class="icon-btn" data-close="modal-project">✕</button>
       </div>
       <form id="project-form">
         <label class="field">
-          <span>Nom du projet</span>
-          <input type="text" id="proj-name" placeholder="Hoodie Officiel — Drop 01" required />
+          <span data-i18n="projectName"></span>
+          <input type="text" id="proj-name" required />
         </label>
-        <label class="field">
-          <span>Format</span>
-          <select id="proj-format">
-            <option value="1080x1920">Story — 1080 × 1920</option>
-            <option value="1080x1080">Carré — 1080 × 1080</option>
-            <option value="2480x3508">A4 — 2480 × 3508 (300 dpi)</option>
-            <option value="3508x4961">A3 — 3508 × 4961 (300 dpi)</option>
-            <option value="custom">Personnalisé…</option>
-          </select>
-        </label>
-        <div class="custom-size" id="custom-size" hidden>
-          <label class="field">
-            <span>Largeur (px)</span>
-            <input type="number" id="proj-width" value="1080" min="200" max="8000" />
-          </label>
-          <label class="field">
-            <span>Hauteur (px)</span>
-            <input type="number" id="proj-height" value="1920" min="200" max="8000" />
-          </label>
+
+        <div class="field">
+          <span data-i18n="format"></span>
+          <div class="format-groups" id="format-groups"></div>
         </div>
+
+        <div class="custom-size" id="custom-size" hidden>
+          <label class="field"><span data-i18n="width"></span><input type="number" id="proj-width" value="1080" min="200" max="8000" /></label>
+          <label class="field"><span data-i18n="height"></span><input type="number" id="proj-height" value="1920" min="200" max="8000" /></label>
+        </div>
+
+        <div class="two-cols">
+          <div class="field">
+            <span data-i18n="posterLanguage"></span>
+            <div class="segmented" id="project-language">
+              <button type="button" data-lang="fr">FR</button>
+              <button type="button" data-lang="en">EN</button>
+              <button type="button" data-lang="es">ES</button>
+            </div>
+          </div>
+          <div class="field">
+            <span data-i18n="palette"></span>
+            <div class="palette-row" id="project-palettes"></div>
+          </div>
+        </div>
+
         <div class="modal-actions">
-          <button type="button" class="btn btn-ghost" data-close="modal-project">Annuler</button>
-          <button type="submit" class="btn btn-accent">Créer le projet</button>
+          <button type="button" class="btn btn-ghost" data-close="modal-project" data-i18n="cancel"></button>
+          <button type="submit" class="btn btn-accent" data-i18n="createProject"></button>
         </div>
       </form>
     </div>
   </div>
 
-  <div class="toast" id="toast" hidden>
-    <span id="toast-text"></span>
-    <button id="toast-action" hidden>Ouvrir</button>
+  <!-- Settings -->
+  <div class="modal" id="modal-settings" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <div><h2 data-i18n="settings"></h2><p data-i18n="settingsDesc"></p></div>
+        <button class="icon-btn" data-close="modal-settings">✕</button>
+      </div>
+      <form id="settings-form">
+        <div class="section-label" data-i18n="appearance"></div>
+        <div class="two-cols">
+          <div class="field">
+            <span data-i18n="theme"></span>
+            <div class="segmented" id="set-theme">
+              <button type="button" data-theme="dark" data-i18n="dark"></button>
+              <button type="button" data-theme="light" data-i18n="light"></button>
+            </div>
+          </div>
+          <div class="field">
+            <span data-i18n="accent"></span>
+            <div class="accent-row" id="set-accent"></div>
+          </div>
+        </div>
+        <div class="field">
+          <span data-i18n="interfaceLanguage"></span>
+          <div class="segmented" id="set-language">
+            <button type="button" data-lang="fr">Français</button>
+            <button type="button" data-lang="en">English</button>
+            <button type="button" data-lang="es">Español</button>
+          </div>
+        </div>
+
+        <div class="section-label" data-i18n="api"></div>
+        <label class="field"><span data-i18n="baseUrl"></span><input type="url" id="set-base-url" required /></label>
+        <div class="two-cols">
+          <label class="field"><span data-i18n="model"></span><input type="text" id="set-model" required /></label>
+          <label class="field"><span data-i18n="reasoning"></span>
+            <select id="set-reasoning">
+              <option value="" data-i18n="reasoningDefault"></option>
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+              <option value="max">max</option>
+            </select>
+          </label>
+        </div>
+        <label class="field"><span data-i18n="apiKey"></span><input type="password" id="set-api-key" autocomplete="off" /><small id="key-hint"></small></label>
+        <label class="check"><input type="checkbox" id="set-remember" /><span data-i18n="rememberKey"></span></label>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="btn-clear-key" data-i18n="clearKey"></button>
+          <button type="submit" class="btn btn-accent" data-i18n="save"></button>
+        </div>
+      </form>
+    </div>
   </div>
 
-  <script src="app.js"></script>
+  <!-- Templates -->
+  <div class="modal" id="modal-templates" hidden>
+    <div class="modal-card wide">
+      <div class="modal-head">
+        <div><h2 data-i18n="templates"></h2><p data-i18n="templatesDesc"></p></div>
+        <button class="icon-btn" data-close="modal-templates">✕</button>
+      </div>
+      <div class="template-grid" id="template-grid"></div>
+    </div>
+  </div>
+
+  <!-- Export -->
+  <div class="modal" id="modal-export" hidden>
+    <div class="modal-card small">
+      <div class="modal-head">
+        <div><h2 data-i18n="export"></h2><p data-i18n="exportDesc"></p></div>
+        <button class="icon-btn" data-close="modal-export">✕</button>
+      </div>
+      <div class="export-grid">
+        <button class="export-choice" data-export="png1"><strong>PNG ×1</strong><span data-i18n="exportPng1"></span></button>
+        <button class="export-choice" data-export="png2"><strong>PNG ×2</strong><span data-i18n="exportPng2"></span></button>
+        <button class="export-choice" data-export="pdf"><strong>PDF</strong><span data-i18n="exportPdf"></span></button>
+        <button class="export-choice" data-export="html"><strong>HTML</strong><span data-i18n="exportHtml"></span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Versions -->
+  <div class="modal" id="modal-versions" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <div><h2 data-i18n="versions"></h2><p data-i18n="versionsDesc"></p></div>
+        <button class="icon-btn" data-close="modal-versions">✕</button>
+      </div>
+      <div class="versions-list" id="versions-list"></div>
+    </div>
+  </div>
+
+  <!-- Project meta -->
+  <div class="modal" id="modal-meta" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <div><h2 data-i18n="projectSettings"></h2><p data-i18n="projectSettingsDesc"></p></div>
+        <button class="icon-btn" data-close="modal-meta">✕</button>
+      </div>
+      <form id="meta-form">
+        <label class="field"><span data-i18n="projectName"></span><input type="text" id="meta-name" required /></label>
+        <div class="field">
+          <span data-i18n="posterLanguage"></span>
+          <div class="segmented" id="meta-language">
+            <button type="button" data-lang="fr">FR</button>
+            <button type="button" data-lang="en">EN</button>
+            <button type="button" data-lang="es">ES</button>
+          </div>
+        </div>
+        <div class="field">
+          <span data-i18n="palette"></span>
+          <div class="palette-row" id="meta-palettes"></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost danger" id="btn-delete-project" data-i18n="deleteProject"></button>
+          <button type="button" class="btn btn-ghost" data-close="modal-meta" data-i18n="cancel"></button>
+          <button type="submit" class="btn btn-accent" data-i18n="save"></button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Command palette -->
+  <div class="modal palette-modal" id="modal-palette" hidden>
+    <div class="palette-card">
+      <div class="palette-input">
+        <span>⌘</span>
+        <input id="palette-input" data-i18n-placeholder="palettePlaceholder" autocomplete="off" />
+        <kbd>Esc</kbd>
+      </div>
+      <div class="palette-list" id="palette-list"></div>
+    </div>
+  </div>
+
+  <input type="file" id="file-input" multiple hidden accept="image/*,.woff,.woff2,.ttf,.otf" />
+
+  <div class="toast" id="toast" hidden>
+    <span id="toast-text"></span>
+    <button id="toast-action" hidden data-i18n="open"></button>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

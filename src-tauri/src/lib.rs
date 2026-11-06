@@ -1,3 +1,4 @@
+mod document;
 mod export;
 mod llm;
 mod project;
@@ -10,6 +11,7 @@ use base64::Engine;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use document::Document;
 use settings::{Settings, SettingsView};
 
 pub struct AppState {
@@ -25,7 +27,7 @@ struct Environment {
     browser: Option<String>,
     has_key: bool,
     projects_dir: String,
-    dev_open: Option<String>,
+    version: String,
 }
 
 #[derive(Serialize)]
@@ -59,10 +61,9 @@ fn save_settings(
             settings.api_key = key;
         }
     }
-    let effort = reasoning_effort
+    settings.reasoning_effort = reasoning_effort
         .map(|v| v.trim().to_ascii_lowercase())
-        .filter(|v| !v.is_empty() && v != "default" && v != "défaut");
-    settings.reasoning_effort = effort;
+        .filter(|v| !v.is_empty() && v != "default");
     if settings.base_url.is_empty() {
         return Err("L'URL de l'API est vide.".into());
     }
@@ -91,7 +92,7 @@ fn environment(state: State<'_, AppState>) -> Environment {
         browser: export::find_browser().map(|p| p.to_string_lossy().to_string()),
         has_key: !state.settings.lock().unwrap().api_key.is_empty(),
         projects_dir: state.projects_dir.to_string_lossy().to_string(),
-        dev_open: std::env::var("AFFICHE_STUDIO_OPEN").ok(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
     }
 }
 
@@ -106,8 +107,17 @@ fn create_project(
     name: String,
     width: u32,
     height: u32,
+    language: String,
+    palette: Option<Vec<String>>,
 ) -> Result<project::Project, String> {
-    project::create(&state.projects_dir, &name, width, height)
+    project::create(
+        &state.projects_dir,
+        &name,
+        width,
+        height,
+        &language,
+        palette,
+    )
 }
 
 #[tauri::command]
@@ -117,8 +127,26 @@ fn open_project(state: State<'_, AppState>, project_id: String) -> Result<projec
 
 #[tauri::command]
 fn delete_project(state: State<'_, AppState>, project_id: String) -> Result<(), String> {
-    let dir = project::project_dir(&state.projects_dir, &project_id)?;
-    std::fs::remove_dir_all(dir).map_err(|e| e.to_string())
+    project::delete(&state.projects_dir, &project_id)
+}
+
+#[tauri::command]
+fn duplicate_project(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<project::Project, String> {
+    project::duplicate(&state.projects_dir, &project_id)
+}
+
+#[tauri::command]
+fn update_project_meta(
+    state: State<'_, AppState>,
+    project_id: String,
+    name: Option<String>,
+    language: Option<String>,
+    palette: Option<Vec<String>>,
+) -> Result<project::ProjectMeta, String> {
+    project::update_meta(&state.projects_dir, &project_id, name, language, palette)
 }
 
 #[tauri::command]
@@ -139,28 +167,59 @@ fn import_asset(
 }
 
 #[tauri::command]
-fn save_poster(
+fn save_document(
     state: State<'_, AppState>,
     project_id: String,
-    html: String,
+    document: Document,
+) -> Result<project::ProjectMeta, String> {
+    project::save_document(&state.projects_dir, &project_id, &document)
+}
+
+#[tauri::command]
+fn save_chat(
+    state: State<'_, AppState>,
+    project_id: String,
+    chat: Vec<project::ChatMessage>,
 ) -> Result<(), String> {
-    project::save_html(&state.projects_dir, &project_id, &html)
+    project::save_chat(&state.projects_dir, &project_id, &chat)
 }
 
 #[tauri::command]
-fn preview_html(state: State<'_, AppState>, project_id: String) -> Result<String, String> {
-    project::preview_html(&state.projects_dir, &project_id)
+fn save_version(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<project::VersionInfo, String> {
+    project::save_version(&state.projects_dir, &project_id)
 }
 
 #[tauri::command]
-async fn generate_poster(
+fn list_versions(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<Vec<project::VersionInfo>, String> {
+    project::list_versions(&state.projects_dir, &project_id)
+}
+
+#[tauri::command]
+fn restore_version(
+    state: State<'_, AppState>,
+    project_id: String,
+    version: String,
+) -> Result<Document, String> {
+    project::restore_version(&state.projects_dir, &project_id, &version)
+}
+
+#[tauri::command]
+async fn generate_design(
     app: AppHandle,
     state: State<'_, AppState>,
     project_id: String,
-    prompt: String,
-) -> Result<String, String> {
-    if prompt.trim().is_empty() {
-        return Err("Décrivez l'affiche que vous voulez générer.".into());
+    instruction: String,
+    regenerate: bool,
+    selected: Vec<String>,
+) -> Result<Document, String> {
+    if instruction.trim().is_empty() {
+        return Err("Décrivez l'affiche ou la modification souhaitée.".into());
     }
 
     let project = project::open(&state.projects_dir, &project_id)?;
@@ -177,7 +236,14 @@ async fn generate_poster(
         }
     };
 
-    let messages = llm::build_messages(&project.meta, &assets, &[], &prompt, &project.html);
+    let messages = llm::build_messages(
+        &project.meta,
+        Some(&project.document),
+        &selected,
+        &assets,
+        &instruction,
+        regenerate,
+    );
 
     let _ = app.emit("gen-stage", serde_json::json!({"stage": "connexion"}));
 
@@ -187,10 +253,10 @@ async fn generate_poster(
     .await;
 
     match result {
-        Ok(html) => {
-            project::save_html(&state.projects_dir, &project_id, &html)?;
-            let _ = app.emit("gen-done", serde_json::json!({ "html": html }));
-            Ok(html)
+        Ok(document) => {
+            let _ = project::save_document(&state.projects_dir, &project_id, &document);
+            let _ = app.emit("gen-done", serde_json::json!({ "document": document }));
+            Ok(document)
         }
         Err(message) => {
             let _ = app.emit("gen-error", serde_json::json!({ "message": message }));
@@ -200,13 +266,15 @@ async fn generate_poster(
 }
 
 #[tauri::command]
-fn export_png(state: State<'_, AppState>, project_id: String) -> Result<ExportResult, String> {
+fn export_png(
+    state: State<'_, AppState>,
+    project_id: String,
+    html: String,
+    scale: u32,
+) -> Result<ExportResult, String> {
     let dir = project::project_dir(&state.projects_dir, &project_id)?;
     let project = project::open(&state.projects_dir, &project_id)?;
-    if project.html.trim().is_empty() {
-        return Err("Générez d'abord une affiche.".into());
-    }
-    let html = project::preview_html(&state.projects_dir, &project_id)?;
+    let scale = scale.clamp(1, 4);
     let render_file = project::write_render_file(&state.projects_dir, &project_id, &html)?;
 
     let browser = export::find_browser().ok_or_else(|| {
@@ -217,9 +285,10 @@ fn export_png(state: State<'_, AppState>, project_id: String) -> Result<ExportRe
     let exports = dir.join("exports");
     std::fs::create_dir_all(&exports).map_err(|e| e.to_string())?;
     let filename = format!(
-        "{}-{}.png",
+        "{}-{}-{}x.png",
         project::slugify(&project.meta.name),
-        chrono::Local::now().format("%Y%m%d-%H%M%S")
+        chrono::Local::now().format("%Y%m%d-%H%M%S"),
+        scale
     );
     let out = exports.join(filename);
     export::render_png(
@@ -228,6 +297,7 @@ fn export_png(state: State<'_, AppState>, project_id: String) -> Result<ExportRe
         &out,
         project.meta.width,
         project.meta.height,
+        scale,
     )?;
 
     Ok(ExportResult {
@@ -237,24 +307,51 @@ fn export_png(state: State<'_, AppState>, project_id: String) -> Result<ExportRe
 }
 
 #[tauri::command]
-fn export_html(state: State<'_, AppState>, project_id: String) -> Result<ExportResult, String> {
+fn export_pdf(
+    state: State<'_, AppState>,
+    project_id: String,
+    html: String,
+) -> Result<ExportResult, String> {
     let dir = project::project_dir(&state.projects_dir, &project_id)?;
     let project = project::open(&state.projects_dir, &project_id)?;
-    if project.html.trim().is_empty() {
-        return Err("Générez d'abord une affiche.".into());
-    }
-    let html = project::preview_html(&state.projects_dir, &project_id)?;
+    let render_file = project::write_render_file(&state.projects_dir, &project_id, &html)?;
+
+    let browser = export::find_browser().ok_or_else(|| {
+        "Aucun navigateur compatible trouvé. Installez Google Chrome, Chromium ou Microsoft Edge."
+            .to_string()
+    })?;
+
     let exports = dir.join("exports");
     std::fs::create_dir_all(&exports).map_err(|e| e.to_string())?;
+    let filename = format!(
+        "{}-{}.pdf",
+        project::slugify(&project.meta.name),
+        chrono::Local::now().format("%Y%m%d-%H%M%S")
+    );
+    let out = exports.join(filename);
+    export::render_pdf(&browser, &render_file, &out)?;
+
+    Ok(ExportResult {
+        path: out.to_string_lossy().to_string(),
+        browser: Some(browser.to_string_lossy().to_string()),
+    })
+}
+
+#[tauri::command]
+fn export_html(
+    state: State<'_, AppState>,
+    project_id: String,
+    html: String,
+) -> Result<ExportResult, String> {
+    let project = project::open(&state.projects_dir, &project_id)?;
     let filename = format!(
         "{}-{}.html",
         project::slugify(&project.meta.name),
         chrono::Local::now().format("%Y%m%d-%H%M%S")
     );
-    let out = exports.join(filename);
-    std::fs::write(&out, html).map_err(|e| e.to_string())?;
+    let path = project::write_export(&state.projects_dir, &project_id, &filename, &html)?;
     Ok(ExportResult {
-        path: out.to_string_lossy().to_string(),
+        path,
         browser: None,
     })
 }
@@ -312,11 +409,17 @@ pub fn run() {
             create_project,
             open_project,
             delete_project,
+            duplicate_project,
+            update_project_meta,
             import_asset,
-            save_poster,
-            preview_html,
-            generate_poster,
+            save_document,
+            save_chat,
+            save_version,
+            list_versions,
+            restore_version,
+            generate_design,
             export_png,
+            export_pdf,
             export_html,
             reveal_path
         ])

@@ -102,8 +102,20 @@ fn run(browser: &Path, args: &[String]) -> Result<(), String> {
     Err(format!(
         "Le rendu a échoué ({}). {}",
         output.status,
-        stderr.chars().take(500).collect::<String>()
+        stderr.chars().take(600).collect::<String>()
     ))
+}
+
+fn base_args() -> Vec<String> {
+    let mut args = vec![
+        "--hide-scrollbars".to_string(),
+        "--disable-gpu".to_string(),
+        "--virtual-time-budget=12000".to_string(),
+        "--run-all-compositor-stages-before-draw".to_string(),
+    ];
+    #[cfg(target_os = "linux")]
+    args.push("--no-sandbox".to_string());
+    args
 }
 
 pub fn render_png(
@@ -112,38 +124,19 @@ pub fn render_png(
     out_path: &Path,
     width: u32,
     height: u32,
+    scale: u32,
 ) -> Result<(), String> {
     if let Some(parent) = out_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let _ = std::fs::remove_file(out_path);
 
-    let base = vec![
-        "--hide-scrollbars".to_string(),
-        "--disable-gpu".to_string(),
-        "--force-device-scale-factor=1".to_string(),
-        format!("--window-size={width},{height}"),
-        "--virtual-time-budget=12000".to_string(),
-        "--run-all-compositor-stages-before-draw".to_string(),
-        format!("--screenshot={}", out_path.to_string_lossy()),
-        file_url(html_path),
-    ];
-
-    #[cfg(target_os = "linux")]
-    let mut args = {
-        let mut v = vec![
-            "--headless=new".to_string(),
-            "--no-sandbox".to_string(),
-        ];
-        v.extend(base);
-        v
-    };
-    #[cfg(not(target_os = "linux"))]
-    let mut args = {
-        let mut v = vec!["--headless=new".to_string()];
-        v.extend(base);
-        v
-    };
+    let mut args = vec!["--headless=new".to_string()];
+    args.extend(base_args());
+    args.push(format!("--force-device-scale-factor={scale}"));
+    args.push(format!("--window-size={width},{height}"));
+    args.push(format!("--screenshot={}", out_path.to_string_lossy()));
+    args.push(file_url(html_path));
 
     if run(browser, &args).is_err() {
         args[0] = "--headless".to_string();
@@ -154,6 +147,39 @@ pub fn render_png(
         .map_err(|_| "Le navigateur n'a produit aucune image.".to_string())?;
     if meta.len() == 0 {
         return Err("Le fichier PNG généré est vide.".into());
+    }
+    Ok(())
+}
+
+pub fn render_pdf(
+    browser: &Path,
+    html_path: &Path,
+    out_path: &Path,
+) -> Result<(), String> {
+    if let Some(parent) = out_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let _ = std::fs::remove_file(out_path);
+
+    let mut args = vec![
+        "--headless=new".to_string(),
+        "--no-pdf-header-footer".to_string(),
+    ];
+    args.extend(base_args());
+    args.push(format!("--print-to-pdf={}", out_path.to_string_lossy()));
+    args.push(file_url(html_path));
+
+    if run(browser, &args).is_err() {
+        args[0] = "--headless".to_string();
+        args.retain(|a| a != "--no-pdf-header-footer");
+        args.push("--print-to-pdf-no-header".to_string());
+        run(browser, &args)?;
+    }
+
+    let meta = std::fs::metadata(out_path)
+        .map_err(|_| "Le navigateur n'a produit aucun PDF.".to_string())?;
+    if meta.len() == 0 {
+        return Err("Le fichier PDF généré est vide.".into());
     }
     Ok(())
 }
