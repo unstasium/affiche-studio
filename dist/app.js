@@ -436,6 +436,7 @@ function fillSettings() {
   $("#set-model").value = settings.model || "";
   $("#set-api-key").value = "";
   $("#set-remember").checked = Boolean(settings.rememberKey);
+  $("#set-reasoning").value = settings.reasoningEffort || "";
   $("#key-hint").textContent = settings.hasKey
     ? "Une clé est déjà enregistrée. Laissez vide pour la conserver."
     : "Laissez vide pour conserver la clé actuelle.";
@@ -452,6 +453,7 @@ async function onSaveSettings(event) {
       model: $("#set-model").value.trim(),
       apiKey: apiKey || null,
       rememberKey: $("#set-remember").checked,
+      reasoningEffort: $("#set-reasoning").value || null,
     });
     closeModal("modal-settings");
     renderApiStatus();

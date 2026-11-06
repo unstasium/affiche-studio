@@ -7,6 +7,8 @@ pub struct LlmConfig {
     pub base_url: String,
     pub model: String,
     pub api_key: String,
+    pub reasoning_effort: Option<String>,
+    pub session_id: String,
 }
 
 fn system_prompt(width: u32, height: u32) -> String {
@@ -119,18 +121,25 @@ where
         "{}/chat/completions",
         cfg.base_url.trim_end_matches('/')
     );
-    let body = json!({
+    let mut body = json!({
         "model": cfg.model,
         "messages": messages,
         "stream": true,
         "temperature": 0.7,
     });
+    if let Some(effort) = cfg.reasoning_effort.as_deref() {
+        if !effort.trim().is_empty() {
+            body["reasoning_effort"] = json!(effort.trim());
+        }
+    }
 
     let response = client
         .post(&url)
         .bearer_auth(&cfg.api_key)
+        .header("User-Agent", concat!("affiche-studio/", env!("CARGO_PKG_VERSION")))
         .header("HTTP-Referer", "https://github.com/unstasium/affiche-studio")
         .header("X-Title", "Affiche Studio")
+        .header("x-opencode-session", &cfg.session_id)
         .json(&body)
         .send()
         .await

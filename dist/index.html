@@ -151,6 +151,17 @@
           <input type="text" id="set-model" placeholder="gpt-4o-mini" required />
         </label>
         <label class="field">
+          <span>Effort de raisonnement</span>
+          <select id="set-reasoning">
+            <option value="">Défaut du fournisseur</option>
+            <option value="low">low — rapide / économique</option>
+            <option value="medium">medium</option>
+            <option value="high">high</option>
+            <option value="max">max</option>
+          </select>
+          <small>OpenCode + DeepSeek V4.1 Flash : choisir « low ».</small>
+        </label>
+        <label class="field">
           <span>Clé API</span>
           <input type="password" id="set-api-key" placeholder="sk-…" autocomplete="off" />
           <small id="key-hint">Laissez vide pour conserver la clé actuelle.</small>

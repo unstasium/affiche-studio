@@ -23,13 +23,18 @@ L'application fonctionne avec tout endpoint compatible OpenAI :
 
 | Fournisseur | Base URL | Exemple de modèle |
 |---|---|---|
+| OpenCode Console / Go | `https://opencode.ai/inference/openai/v1` | `deepseek-v4.1-flash` |
 | OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
 | OpenRouter | `https://openrouter.ai/api/v1` | `anthropic/claude-3.5-sonnet` |
 | Groq | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
 | DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` |
-| Ollama | `http://localhost:11434/v1` | `qwen2.5-coder:32b` |
+| Ollama | `http://localhost:11434/v1` | `qwen2.5-coder:32b` | `ollama` (non vide) |
 
 Une clé peut aussi être fournie par variable d'environnement : `AFFICHE_STUDIO_API_KEY` ou `OPENAI_API_KEY`.
+
+Pour **OpenCode + DeepSeek V4.1 Flash**, choisissez l'effort de raisonnement **`low`**
+dans les réglages : l'application envoie alors `reasoning_effort: "low"`.
+L'export fonctionne aussi avec les modèles sans raisonnement (laissez « Défaut »).
 
 ## Export PNG
 

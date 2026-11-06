@@ -10,6 +10,7 @@ pub struct Settings {
     #[serde(skip)]
     pub api_key: String,
     pub remember_key: bool,
+    pub reasoning_effort: Option<String>,
 }
 
 impl Default for Settings {
@@ -19,6 +20,7 @@ impl Default for Settings {
             model: "gpt-4o-mini".to_string(),
             api_key: String::new(),
             remember_key: false,
+            reasoning_effort: None,
         }
     }
 }
@@ -30,6 +32,7 @@ pub struct SettingsView {
     pub model: String,
     pub has_key: bool,
     pub remember_key: bool,
+    pub reasoning_effort: Option<String>,
 }
 
 impl Settings {
@@ -39,6 +42,7 @@ impl Settings {
             model: self.model.clone(),
             has_key: !self.api_key.is_empty(),
             remember_key: self.remember_key,
+            reasoning_effort: self.reasoning_effort.clone(),
         }
     }
 
@@ -77,6 +81,7 @@ impl Settings {
             "baseUrl": self.base_url,
             "model": self.model,
             "rememberKey": self.remember_key,
+            "reasoningEffort": self.reasoning_effort,
         });
         fs::write(
             config_dir.join("settings.json"),

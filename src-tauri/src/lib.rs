@@ -47,6 +47,7 @@ fn save_settings(
     model: String,
     api_key: Option<String>,
     remember_key: bool,
+    reasoning_effort: Option<String>,
 ) -> Result<SettingsView, String> {
     let mut settings = state.settings.lock().unwrap();
     settings.base_url = base_url.trim().trim_end_matches('/').to_string();
@@ -58,6 +59,10 @@ fn save_settings(
             settings.api_key = key;
         }
     }
+    let effort = reasoning_effort
+        .map(|v| v.trim().to_ascii_lowercase())
+        .filter(|v| !v.is_empty() && v != "default" && v != "défaut");
+    settings.reasoning_effort = effort;
     if settings.base_url.is_empty() {
         return Err("L'URL de l'API est vide.".into());
     }
@@ -167,6 +172,8 @@ async fn generate_poster(
             base_url: settings.base_url.clone(),
             model: settings.model.clone(),
             api_key: settings.api_key.clone(),
+            reasoning_effort: settings.reasoning_effort.clone(),
+            session_id: project_id.clone(),
         }
     };
 
