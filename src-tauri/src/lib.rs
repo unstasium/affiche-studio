@@ -1,9 +1,11 @@
 mod document;
 mod export;
+mod imagesearch;
 mod llm;
 mod project;
 mod settings;
 
+use std::process::Stdio;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -83,6 +85,7 @@ fn save_settings(
     remember_key: bool,
     reasoning_effort: Option<String>,
     backend: Option<String>,
+    image_search_key: Option<String>,
 ) -> Result<SettingsView, String> {
     let mut settings = state.settings.lock().unwrap();
     let backend = backend
@@ -101,6 +104,12 @@ fn save_settings(
     settings.reasoning_effort = reasoning_effort
         .map(|v| v.trim().to_ascii_lowercase())
         .filter(|v| !v.is_empty() && v != "default");
+    if let Some(key) = image_search_key {
+        let key = key.trim().to_string();
+        if !key.is_empty() {
+            settings.image_search_key = key;
+        }
+    }
     if settings.backend == "api" && settings.base_url.is_empty() {
         return Err("L'URL de l'API est vide.".into());
     }
@@ -135,6 +144,39 @@ fn environment(state: State<'_, AppState>) -> Environment {
         dev_theme: std::env::var("AFFICHE_STUDIO_THEME").ok(),
         dev_lang: std::env::var("AFFICHE_STUDIO_LANG").ok(),
     }
+}
+
+fn find_rembg() -> Option<std::path::PathBuf> {
+    #[allow(unused_mut)]
+    let mut names = vec!["rembg".to_string()];
+    #[cfg(windows)]
+    names.push("rembg.exe".to_string());
+    if let Some(path) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&path) {
+            for name in &names {
+                let candidate = dir.join(name);
+                if candidate.is_file() {
+                    return Some(candidate);
+                }
+            }
+        }
+    }
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(std::path::PathBuf::from);
+    if let Some(home) = home {
+        for relative in [
+            ".local/bin/rembg",
+            ".local/share/affiche-studio/rembg-venv/bin/rembg",
+            ".local/share/affiche-studio/venv/bin/rembg",
+        ] {
+            let candidate = home.join(relative);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+    }
+    None
 }
 
 fn find_opencode() -> Option<std::path::PathBuf> {
@@ -303,7 +345,7 @@ async fn generate_design(
     instruction: String,
     regenerate: bool,
     selected: Vec<String>,
-) -> Result<Document, String> {
+) -> Result<llm::Generated, String> {
     if instruction.trim().is_empty() {
         return Err("Décrivez l'affiche ou la modification souhaitée.".into());
     }
@@ -339,10 +381,13 @@ async fn generate_design(
     .await;
 
     match result {
-        Ok(document) => {
-            let _ = project::save_document(&state.projects_dir, &project_id, &document);
-            let _ = app.emit("gen-done", serde_json::json!({ "document": document }));
-            Ok(document)
+        Ok(generated) => {
+            let _ = project::save_document(&state.projects_dir, &project_id, &generated.document);
+            let _ = app.emit(
+                "gen-done",
+                serde_json::json!({ "document": generated.document, "message": generated.message }),
+            );
+            Ok(generated)
         }
         Err(message) => {
             let _ = app.emit("gen-error", serde_json::json!({ "message": message }));
@@ -440,6 +485,152 @@ fn export_html(
         path,
         browser: None,
     })
+}
+
+#[tauri::command]
+async fn remove_background(
+    state: State<'_, AppState>,
+    project_id: String,
+    name: String,
+) -> Result<project::Asset, String> {
+    let dir = project::project_dir(&state.projects_dir, &project_id)?;
+    let source = dir.join("assets").join(project::sanitize_filename(&name));
+    if !source.is_file() {
+        return Err("Image introuvable.".into());
+    }
+    let rembg = find_rembg().ok_or_else(|| {
+        "Détourage indisponible : installez rembg (pip install \"rembg[cli]\").".to_string()
+    })?;
+    let work = std::env::temp_dir().join("affiche-studio-bg");
+    std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;
+    let input = work.join(project::sanitize_filename(&name));
+    let output = work.join("cutout.png");
+    std::fs::copy(&source, &input).map_err(|e| e.to_string())?;
+    let _ = std::fs::remove_file(&output);
+
+    let mut child = tokio::process::Command::new(rembg)
+        .arg("i")
+        .arg(&input)
+        .arg(&output)
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|e| format!("Impossible de lancer rembg : {e}"))?;
+
+    let result = tokio::time::timeout(Duration::from_secs(300), child.wait_with_output())
+        .await
+        .map_err(|_| "rembg a dépassé 5 minutes.".to_string())?
+        .map_err(|e| format!("rembg a échoué : {e}"))?;
+    if !result.status.success() {
+        let stderr = String::from_utf8_lossy(&result.stderr);
+        return Err(format!(
+            "rembg a échoué : {}",
+            stderr.chars().take(600).collect::<String>()
+        ));
+    }
+    let bytes = std::fs::read(&output).map_err(|e| format!("Résultat rembg introuvable : {e}"))?;
+    let stem = std::path::Path::new(&name)
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("image");
+    project::import_asset(
+        &state.projects_dir,
+        &project_id,
+        &format!("{stem}-nobg.png"),
+        &bytes,
+    )
+}
+
+#[tauri::command]
+fn upscale_asset(
+    state: State<'_, AppState>,
+    project_id: String,
+    name: String,
+    factor: u32,
+) -> Result<project::Asset, String> {
+    project::upscale_asset(&state.projects_dir, &project_id, &name, factor)
+}
+
+#[tauri::command]
+async fn search_images(
+    state: State<'_, AppState>,
+    query: String,
+    count: Option<u32>,
+    provider: Option<String>,
+) -> Result<Vec<imagesearch::WebImage>, String> {
+    let provider = provider.unwrap_or_else(|| "openverse".to_string());
+    let key = state.settings.lock().unwrap().image_search_key.clone();
+    imagesearch::search(
+        &state.client,
+        &query,
+        count.unwrap_or(18) as usize,
+        &provider,
+        &key,
+    )
+    .await
+}
+
+#[tauri::command]
+async fn import_image_url(
+    state: State<'_, AppState>,
+    project_id: String,
+    url: String,
+    name: String,
+) -> Result<project::Asset, String> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("URL invalide.".into());
+    }
+    let response = state
+        .client
+        .get(&url)
+        .timeout(Duration::from_secs(45))
+        .send()
+        .await
+        .map_err(|e| format!("Téléchargement impossible : {e}"))?;
+    if !response.status().is_success() {
+        return Err(format!("Le serveur a répondu {}", response.status()));
+    }
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("")
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    if !content_type.starts_with("image/") {
+        return Err(format!("Ce lien n'est pas une image ({content_type})."));
+    }
+    let extension = match content_type.as_str() {
+        "image/png" => "png",
+        "image/jpeg" => "jpg",
+        "image/webp" => "webp",
+        "image/gif" => "gif",
+        "image/svg+xml" => "svg",
+        "image/avif" => "avif",
+        _ => "png",
+    };
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("Lecture de l'image impossible : {e}"))?;
+    if bytes.len() > 20 * 1024 * 1024 {
+        return Err("Image trop volumineuse (20 Mo max).".into());
+    }
+    let base = name
+        .trim()
+        .trim_end_matches(&format!(".{extension}"))
+        .to_string();
+    let base = if base.is_empty() { "image".to_string() } else { base };
+    project::import_asset(
+        &state.projects_dir,
+        &project_id,
+        &format!("{base}.{extension}"),
+        &bytes,
+    )
 }
 
 #[tauri::command]
@@ -566,6 +757,10 @@ pub fn run() {
             export_png,
             export_pdf,
             export_html,
+            remove_background,
+            upscale_asset,
+            search_images,
+            import_image_url,
             check_update,
             install_update,
             open_url,

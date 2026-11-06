@@ -139,7 +139,13 @@
           <button class="btn btn-mini" data-add="shape"><span data-icon="shape" data-icon-size="13"></span> <span data-i18n="addShape"></span></button>
         </div>
         <div class="assets-strip">
-          <div class="assets-strip-head"><span data-i18n="assets"></span><button class="btn btn-mini" id="btn-import-assets" data-i18n="importAssets"></button></div>
+          <div class="assets-strip-head">
+            <span data-i18n="assets"></span>
+            <span class="strip-actions">
+              <button class="btn btn-mini" id="btn-search-images"><span data-icon="search" data-icon-size="12"></span> <span data-i18n="searchImages"></span></button>
+              <button class="btn btn-mini" id="btn-import-assets" data-i18n="importAssets"></button>
+            </span>
+          </div>
           <div class="assets-strip-list" id="panel-assets"></div>
         </div>
         <div class="layers-list" id="layers-list"></div>
@@ -233,6 +239,9 @@
             <button type="button" data-lang="es">Español</button>
           </div>
         </div>
+
+        <div class="section-label" data-i18n="imageSearch"></div>
+        <label class="field"><span data-i18n="braveKey"></span><input type="password" id="set-image-key" autocomplete="off" /><small id="image-key-hint" data-i18n="braveHint"></small></label>
 
         <div class="section-label" data-i18n="api"></div>
         <div class="field">
@@ -333,6 +342,27 @@
           <button type="submit" class="btn btn-accent" data-i18n="save"></button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Recherche d'images -->
+  <div class="modal" id="modal-images" hidden>
+    <div class="modal-card wide">
+      <div class="modal-head">
+        <div><h2 data-i18n="searchImages"></h2><p data-i18n="searchImagesDesc"></p></div>
+        <button class="icon-btn" data-close="modal-images"><span data-icon="close" data-icon-size="15"></span></button>
+      </div>
+      <div class="image-search-bar">
+        <select id="image-source">
+          <option value="openverse" data-i18n="sourceOpenverse"></option>
+          <option value="brave" data-i18n="sourceBrave"></option>
+          <option value="pinterest" data-i18n="sourcePinterest"></option>
+        </select>
+        <input id="image-query" data-i18n-placeholder="searchImagesPlaceholder" autocomplete="off" />
+        <button class="btn btn-accent" id="btn-image-search"><span data-icon="search"></span> <span data-i18n="search"></span></button>
+      </div>
+      <div class="image-results" id="image-results"></div>
+      <p class="security-note" data-i18n="imagesLicense"></p>
     </div>
   </div>
 

@@ -574,3 +574,55 @@ pub fn write_render_file(root: &Path, id: &str, html: &str) -> Result<PathBuf, S
     fs::write(&path, html).map_err(|e| e.to_string())?;
     Ok(path)
 }
+
+
+pub fn upscale_asset(
+    root: &Path,
+    id: &str,
+    name: &str,
+    factor: u32,
+) -> Result<Asset, String> {
+    if !matches!(factor, 2 | 4) {
+        return Err("Facteur d'upscale invalide (×2 ou ×4).".into());
+    }
+    let dir = project_dir(root, id)?;
+    let source = dir.join("assets").join(sanitize_filename(name));
+    if !source.is_file() {
+        return Err("Image introuvable.".into());
+    }
+    let image = image::open(&source)
+        .map_err(|e| format!("Format non pris en charge pour l'upscale : {e}"))?;
+    let (width, height) = (image.width(), image.height());
+    if width.saturating_mul(factor) > 12_000 || height.saturating_mul(factor) > 12_000 {
+        return Err("L'image est déjà trop grande pour cet upscale.".into());
+    }
+    let resized = image.resize_exact(
+        width * factor,
+        height * factor,
+        image::imageops::FilterType::Lanczos3,
+    );
+    let stem = Path::new(name)
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("image");
+    let target = unique_path(
+        &dir.join("assets"),
+        &format!("{stem}@{factor}x.png"),
+    );
+    resized
+        .save_with_format(&target, image::ImageFormat::Png)
+        .map_err(|e| format!("Enregistrement impossible : {e}"))?;
+    let bytes = fs::read(&target).map_err(|e| e.to_string())?;
+    let final_name = target
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("image.png")
+        .to_string();
+    Ok(Asset {
+        name: final_name,
+        data_url: format!(
+            "data:image/png;base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(bytes)
+        ),
+    })
+}

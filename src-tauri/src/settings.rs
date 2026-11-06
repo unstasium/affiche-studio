@@ -17,6 +17,8 @@ pub struct Settings {
     pub reasoning_effort: Option<String>,
     #[serde(default = "default_backend")]
     pub backend: String,
+    #[serde(skip)]
+    pub image_search_key: String,
 }
 
 impl Default for Settings {
@@ -28,6 +30,7 @@ impl Default for Settings {
             remember_key: false,
             reasoning_effort: None,
             backend: default_backend(),
+            image_search_key: String::new(),
         }
     }
 }
@@ -41,6 +44,7 @@ pub struct SettingsView {
     pub remember_key: bool,
     pub reasoning_effort: Option<String>,
     pub backend: String,
+    pub has_image_search_key: bool,
 }
 
 impl Settings {
@@ -52,6 +56,7 @@ impl Settings {
             remember_key: self.remember_key,
             reasoning_effort: self.reasoning_effort.clone(),
             backend: self.backend.clone(),
+            has_image_search_key: !self.image_search_key.is_empty(),
         }
     }
 
@@ -60,6 +65,13 @@ impl Settings {
             .ok()
             .and_then(|raw| serde_json::from_str::<Settings>(&raw).ok())
             .unwrap_or_default();
+
+        if let Ok(key) = fs::read_to_string(config_dir.join("imagesearch_key")) {
+            let key = key.trim().to_string();
+            if !key.is_empty() {
+                settings.image_search_key = key;
+            }
+        }
 
         if let Ok(key) = fs::read_to_string(config_dir.join("api_key")) {
             let key = key.trim().to_string();
@@ -97,6 +109,16 @@ impl Settings {
             config_dir.join("settings.json"),
             serde_json::to_string_pretty(&data)?,
         )?;
+
+        let image_key_path = config_dir.join("imagesearch_key");
+        if !self.image_search_key.is_empty() {
+            fs::write(&image_key_path, &self.image_search_key)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = fs::set_permissions(&image_key_path, fs::Permissions::from_mode(0o600));
+            }
+        }
 
         let key_path = config_dir.join("api_key");
         if self.remember_key && !self.api_key.is_empty() {

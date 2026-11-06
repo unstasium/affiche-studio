@@ -1,4 +1,5 @@
 use futures_util::StreamExt;
+use serde::Serialize;
 use serde_json::{json, Value};
 use std::process::Stdio;
 use std::time::Duration;
@@ -7,6 +8,13 @@ use tokio::process::Command;
 
 use crate::document::Document;
 use crate::project::ProjectMeta;
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Generated {
+    pub document: Document,
+    pub message: String,
+}
 
 pub struct LlmConfig {
     pub base_url: String,
@@ -27,6 +35,8 @@ fn system_prompt(width: u32, height: u32, language: &str) -> String {
 
 RÈGLES DE SORTIE — IMPÉRATIVES :
 - Réponds UNIQUEMENT avec un bloc ```json ... ``` contenant le document complet. Aucun texte avant ou après.
+- Ajoute un champ "message" : ta réponse naturelle à l'utilisateur, en 1 à 3 phrases, chaleureuse et concrète. Explique brièvement ce que tu as changé. Si la demande est une question ou ne nécessite aucune modification, renvoie le document inchangé et réponds dans "message".
+- Ne mets pas de markdown dans "message".
 - Le canvas fait exactement {width}px de large et {height}px de haut.
 - Tous les textes de l'affiche doivent être en {lang}.
 - Les calques sont empilés du plus bas au plus haut (le dernier est au-dessus).
@@ -164,7 +174,7 @@ pub async fn generate<F>(
     cfg: &LlmConfig,
     messages: Vec<Value>,
     on_chunk: F,
-) -> Result<Document, String>
+) -> Result<Generated, String>
 where
     F: Fn(&str),
 {
@@ -259,22 +269,32 @@ where
         return Err("Le modèle n'a renvoyé aucun contenu.".into());
     }
 
-    parse_document(&accumulated)
+    parse_generated(&accumulated)
 }
 
-fn parse_document(raw: &str) -> Result<Document, String> {
+fn parse_generated(raw: &str) -> Result<Generated, String> {
     let payload = extract_json(raw);
     let value: Value = serde_json::from_str(&payload)
         .map_err(|e| format!("Le modèle n'a pas renvoyé un JSON valide : {e}"))?;
     let value = value.get("document").cloned().unwrap_or(value);
 
+    let mut value = value;
+    let message = value
+        .get("message")
+        .and_then(|item| item.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if let Some(object) = value.as_object_mut() {
+        object.remove("message");
+    }
     let mut document: Document = serde_json::from_value(value)
         .map_err(|e| format!("Document de calques invalide : {e}"))?;
     document.normalize();
     if document.layers.is_empty() {
         return Err("Le modèle n'a produit aucun calque. Reformulez le brief.".into());
     }
-    Ok(document)
+    Ok(Generated { document, message })
 }
 
 pub fn build_cli_prompt(messages: &[Value]) -> String {
@@ -303,7 +323,7 @@ pub async fn generate_via_opencode(
     model: &str,
     effort: Option<&str>,
     prompt: &str,
-) -> Result<Document, String> {
+) -> Result<Generated, String> {
     let model = model_with_variant(model, effort);
     let mut child = Command::new("opencode")
         .arg("run")
@@ -369,7 +389,7 @@ pub async fn generate_via_opencode(
         ));
     }
 
-    parse_document(&text)
+    parse_generated(&text)
 }
 
 
@@ -412,6 +432,6 @@ mod tests {
             generate_via_opencode("opencode-go/deepseek-v4.1-flash", Some("low"), &prompt).await;
         assert!(result.is_ok(), "{:?}", result.err());
         let generated = result.unwrap();
-        assert!(!generated.layers.is_empty(), "aucun calque généré");
+        assert!(!generated.document.layers.is_empty(), "aucun calque généré");
     }
 }

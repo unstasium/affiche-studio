@@ -16,6 +16,9 @@ Les générateurs d'images produisent des visuels impossibles à retoucher. Affi
 - Interface **FR / EN / ES** à chaud
 - Formats en sélecteur visuel : réseaux sociaux, impression, web, personnalisé
 - Backend **API compatible OpenAI** ou **OpenCode local** (CLI)
+- **Recherche d'images web** : Openverse, Wikimedia, Brave Search, mode Pinterest
+- **Upscale ×2/×4** des images, **détourage** via rembg local
+- Chat conversationnel : l'IA explique ses modifications en langage naturel
 - Templates, palette de commandes (Ctrl/Cmd+K), duplication, groupes, versions, undo/redo
 - Export **PNG ×1/×2**, **PDF** et **HTML** autonome
 - Page **Compte** avec vérification et installation des mises à jour GitHub

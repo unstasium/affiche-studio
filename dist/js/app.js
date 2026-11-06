@@ -104,6 +104,11 @@ async function boot() {
   } else if (state.env?.devOpen === "typing") {
     await openProject("demo-v21");
     showTyping();
+  } else if (state.env?.devOpen === "images") {
+    await openProject("demo-v21");
+    openImageSearch();
+    $("#image-query").value = "hoodie";
+    searchWebImages();
   } else if (state.env?.devOpen) {
     await openProject(state.env.devOpen);
   } else if (!state.settings?.hasKey && (state.settings?.backend || "api") === "api") {
@@ -789,6 +794,29 @@ function renderStyle() {
         control(t("radius"), numberInput(layer.radius, (value) => update({ radius: value }), { min: 0 })),
       ])
     );
+
+    const upscaleRow = document.createElement("div");
+    upscaleRow.className = "grid-2";
+    for (const factor of [2, 4]) {
+      const button = document.createElement("button");
+      button.className = "btn btn-mini";
+      button.textContent = `${t("upscale")} ×${factor}`;
+      button.addEventListener("click", (event) => {
+        event.currentTarget.disabled = true;
+        upscaleSelected(factor);
+      });
+      upscaleRow.appendChild(button);
+    }
+    panel.appendChild(section(t("resolution"), [upscaleRow]));
+
+    const removeBg = document.createElement("button");
+    removeBg.className = "btn btn-mini";
+    removeBg.innerHTML = `${icon("sparkles", 13)} ${t("removeBg")}`;
+    removeBg.addEventListener("click", (event) => {
+      event.currentTarget.disabled = true;
+      removeBackground();
+    });
+    panel.appendChild(section(t("image"), [removeBg]));
   }
 
   if (layer.type === "shape") {
@@ -1136,12 +1164,14 @@ async function sendChat(regenerate = false, { silent = false } = {}) {
   showTyping();
 
   try {
-    const document = await invoke("generate_design", {
+    const result = await invoke("generate_design", {
       projectId: state.project.id,
       instruction,
       regenerate,
       selected: state.selection,
     });
+    const document = result.document || result;
+    const reply = String(result.message || "").trim();
     removeTyping();
     state.document = document;
     state.selection = [];
@@ -1153,7 +1183,7 @@ async function sendChat(regenerate = false, { silent = false } = {}) {
     renderChatSelection();
     state.chat.push({
       role: "assistant",
-      content: `**${t("genDone")}** · ${document.layers.length} ${t("layersCount")}`,
+      content: reply || `**${t("genDone")}** · ${document.layers.length} ${t("layersCount")}`,
       at: new Date().toISOString(),
     });
     saveChat();
@@ -1190,6 +1220,148 @@ async function saveChat() {
 /* ------------------------------------------------------------------ */
 /* Assets                                                              */
 /* ------------------------------------------------------------------ */
+
+function openImageSearch() {
+  if (!state.project) {
+    toast(t("needProject"), true);
+    return;
+  }
+  openModal("modal-images");
+  setTimeout(() => $("#image-query").focus(), 60);
+  const results = $("#image-results");
+  if (!results.dataset.filled) {
+    results.innerHTML = `<div class="empty-results">${icon("search", 18)} ${escapeHtml(t("searchImagesDesc"))}</div>`;
+  }
+}
+
+async function searchWebImages() {
+  const query = $("#image-query").value.trim();
+  if (!query) return;
+  const provider = $("#image-source").value;
+  if ((provider === "brave" || provider === "pinterest") && !state.settings?.hasImageSearchKey) {
+    toast(t("braveMissing"), true);
+    openSettings();
+    return;
+  }
+  const results = $("#image-results");
+  results.dataset.filled = "1";
+  results.innerHTML = `<div class="loading-results"><span class="pulse"></span>${escapeHtml(t("searching"))}</div>`;
+  try {
+    const images = await invoke("search_images", { query, count: 18, provider });
+    renderImageResults(images);
+  } catch (error) {
+    results.innerHTML = `<div class="empty-results">${escapeHtml(t("imageSearchError"))}<br><small>${escapeHtml(String(error))}</small></div>`;
+  }
+}
+
+function renderImageResults(images) {
+  const results = $("#image-results");
+  results.innerHTML = "";
+  if (!images.length) {
+    results.innerHTML = `<div class="empty-results">${escapeHtml(t("noImages"))}</div>`;
+    return;
+  }
+  for (const image of images) {
+    const card = document.createElement("div");
+    card.className = "web-image";
+    card.title = image.title;
+
+    const img = document.createElement("img");
+    img.src = image.thumbnail;
+    img.alt = image.title;
+    img.loading = "lazy";
+    img.onerror = () => card.remove();
+
+    const meta = document.createElement("div");
+    meta.className = "wi-meta";
+    const title = document.createElement("div");
+    title.className = "wi-title";
+    title.textContent = image.title || "Image";
+    const credit = document.createElement("div");
+    credit.textContent = [image.author, image.license, image.source].filter(Boolean).join(" · ");
+    meta.append(title, credit);
+
+    const add = document.createElement("button");
+    add.className = "wi-add";
+    add.title = t("addToPoster");
+    add.innerHTML = icon("plus", 14);
+    add.addEventListener("click", (event) => {
+      event.stopPropagation();
+      importWebImage(image, card);
+    });
+
+    card.append(img, meta, add);
+    card.addEventListener("click", () => importWebImage(image, card));
+    results.appendChild(card);
+  }
+  paintIcons(results);
+}
+
+async function importWebImage(image, card) {
+  if (!state.project) return;
+  card.classList.add("busy");
+  try {
+    const asset = await invoke("import_image_url", {
+      projectId: state.project.id,
+      url: image.url,
+      name: image.title || "image",
+    });
+    const project = await invoke("open_project", { projectId: state.project.id });
+    state.project.assets = project.assets;
+    state.assets = project.assets;
+    state.editor.setAssets(project.assets);
+    renderAssets();
+    addImageLayer(asset.name);
+    closeModal("modal-images");
+    toast(t("imagesImported", { count: 1 }));
+  } catch (error) {
+    card.classList.remove("busy");
+    toast(String(error), true);
+  }
+}
+
+async function removeBackground() {
+  const layer = state.editor.getSelection()[0];
+  if (!layer || layer.type !== "image" || !layer.src) return;
+  try {
+    const asset = await invoke("remove_background", {
+      projectId: state.project.id,
+      name: layer.src,
+    });
+    const project = await invoke("open_project", { projectId: state.project.id });
+    state.project.assets = project.assets;
+    state.assets = project.assets;
+    state.editor.setAssets(project.assets);
+    state.editor.updateLayer(layer.id, { src: asset.name });
+    renderAssets();
+    renderStyle();
+    toast(t("removeBgDone"));
+  } catch (error) {
+    toast(String(error), true);
+  }
+}
+
+async function upscaleSelected(factor) {
+  const layer = state.editor.getSelection()[0];
+  if (!layer || layer.type !== "image" || !layer.src) return;
+  try {
+    const asset = await invoke("upscale_asset", {
+      projectId: state.project.id,
+      name: layer.src,
+      factor,
+    });
+    const project = await invoke("open_project", { projectId: state.project.id });
+    state.project.assets = project.assets;
+    state.assets = project.assets;
+    state.editor.setAssets(project.assets);
+    state.editor.updateLayer(layer.id, { src: asset.name });
+    renderAssets();
+    renderStyle();
+    toast(t("upscaled", { factor }));
+  } catch (error) {
+    toast(String(error), true);
+  }
+}
 
 async function importFiles(files, addAsLayer = false) {
   if (!state.project) return;
@@ -1584,6 +1756,10 @@ function openSettings() {
   $("#set-api-key").value = "";
   $("#set-remember").checked = Boolean(settings.rememberKey);
   $("#set-reasoning").value = settings.reasoningEffort || "";
+  $("#set-image-key").value = "";
+  $("#image-key-hint").textContent = settings.hasImageSearchKey
+    ? `${t("braveKey")} ✓`
+    : t("braveHint");
   $("#key-hint").textContent = settings.hasKey ? t("apiConfigured") : t("apiHint");
   renderThemeSegments();
   renderAccentDots();
@@ -1672,6 +1848,7 @@ async function saveSettings(event) {
       rememberKey: backend === "api" ? $("#set-remember").checked : false,
       reasoningEffort: $("#set-reasoning").value || null,
       backend,
+      imageSearchKey: $("#set-image-key").value.trim() || null,
     });
     localStorage.setItem("as.lang", state.lang);
     localStorage.setItem("as.theme", state.theme);
@@ -1765,6 +1942,7 @@ function commandList() {
     { label: t("cmdVersions"), run: openVersions },
     { label: t("cmdAddText"), run: addTextLayer },
     { label: t("cmdAddImage"), run: () => $("#file-input").click() },
+    { label: t("cmdSearchImages"), run: openImageSearch },
     { label: t("cmdAddShape"), run: addShapeLayer },
     { label: t("cmdFit"), run: () => state.editor.fit() },
     { label: t("cmdSaveVersion"), run: saveVersionManual },
@@ -2035,6 +2213,14 @@ function bindEvents() {
     });
   });
   $("#btn-import-assets").addEventListener("click", () => $("#file-input").click());
+  $("#btn-search-images").addEventListener("click", openImageSearch);
+  $("#btn-image-search").addEventListener("click", searchWebImages);
+  $("#image-query").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      searchWebImages();
+    }
+  });
   $("#file-input").addEventListener("change", async (event) => {
     const files = [...event.target.files];
     event.target.value = "";

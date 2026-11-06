@@ -674,3 +674,49 @@ button .icon { pointer-events: none; }
   width: 100%; height: 22px; padding: 0 4px; border: 1px solid var(--accent-line);
   border-radius: 4px; background: var(--panel-2); color: var(--text); font: inherit;
 }
+
+.strip-actions { display: inline-flex; gap: 4px; }
+.image-search-bar { display: flex; gap: 8px; margin-bottom: 14px; }
+.image-search-bar input {
+  flex: 1; height: 38px; padding: 0 11px; background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px;
+}
+.image-search-bar input:focus { outline: none; border-color: var(--accent-line); }
+.image-results {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px;
+  min-height: 220px; max-height: 52vh; overflow-y: auto; padding-right: 4px;
+}
+.web-image {
+  position: relative; border: 1px solid var(--line); border-radius: 10px;
+  overflow: hidden; background: var(--panel-2); text-align: left; cursor: pointer;
+  transition: border-color .15s, transform .15s;
+}
+.web-image:hover { border-color: var(--accent-line); transform: translateY(-1px); }
+.web-image.busy { opacity: .5; pointer-events: none; }
+.web-image img { width: 100%; height: 128px; object-fit: cover; display: block; background: var(--bg); }
+.web-image .wi-meta { padding: 7px 8px; font-size: 9px; color: var(--muted-2); line-height: 1.35; }
+.web-image .wi-title { font-size: 10.5px; color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+.web-image .wi-add {
+  position: absolute; top: 6px; right: 6px; width: 26px; height: 26px;
+  border: 0; border-radius: 7px; background: rgba(0,0,0,.58); color: #fff;
+  display: grid; place-items: center; opacity: 0; transition: opacity .15s;
+}
+.web-image:hover .wi-add { opacity: 1; }
+.image-results .loading-results, .image-results .empty-results {
+  grid-column: 1 / -1; display: flex; align-items: center; justify-content: center;
+  gap: 9px; padding: 42px 10px; color: var(--muted-2); font-size: 12px;
+}
+
+.image-search-bar select {
+  height: 38px; padding: 0 9px; background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px; font-size: 11.5px;
+}
+.image-search-bar select {
+  appearance: none; -webkit-appearance: none;
+  color: var(--text); background-color: var(--panel-2);
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 13px) 16px, calc(100% - 9px) 16px;
+  background-size: 4px 4px, 4px 4px; background-repeat: no-repeat;
+  padding-right: 24px;
+}
+.image-search-bar select option { background: var(--panel-2); color: var(--text); }
