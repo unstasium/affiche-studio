@@ -510,6 +510,8 @@ async fn remove_background(
 
     let mut child = tokio::process::Command::new(rembg)
         .arg("i")
+        .arg("-m")
+        .arg("isnet-general-use")
         .arg(&input)
         .arg(&output)
         .stdout(Stdio::null())
