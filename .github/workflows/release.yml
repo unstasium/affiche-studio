@@ -20,7 +20,7 @@ jobs:
         id: create
         with:
           script: |
-            const tag = context.ref_name;
+            const tag = context.ref.replace('refs/tags/', '');
             const body = [
               "## Affiche Studio",
               "",
