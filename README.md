@@ -8,7 +8,7 @@ Générateur d'affiches assisté par IA. Vous importez vos images, vous décrive
 
 Les générateurs d'images produisent des visuels impossibles à retoucher. Affiche Studio produit du code : chaque titre, chaque marge, chaque couleur reste modifiable, et le rendu final est net à n'importe quelle taille.
 
-## Fonctionnalités (v2.0)
+## Fonctionnalités (v2.1)
 
 - Éditeur de **calques** : texte, image, forme, déplacement, redimensionnement, rotation
 - Affiche au centre, projets à gauche, chat IA + calques + style à droite
@@ -18,7 +18,11 @@ Les générateurs d'images produisent des visuels impossibles à retoucher. Affi
 - Backend **API compatible OpenAI** ou **OpenCode local** (CLI)
 - Templates, palette de commandes (Ctrl/Cmd+K), duplication, groupes, versions, undo/redo
 - Export **PNG ×1/×2**, **PDF** et **HTML** autonome
-- Page **Compte** avec vérification des mises à jour GitHub
+- Page **Compte** avec vérification et installation des mises à jour GitHub
+- **Chat humain** : bulles, avatars, horodatage, indicateur de réflexion animé,
+  étapes, copier/réessayer, suggestions, rendu markdown léger
+- Icônes SVG cohérentes, animations, mode clair/sombre, mode réduit
+- Menu contextuel du canvas, copier/coller, alignement multi-calques
 - Clé API optionnellement mémorisée (fichier de configuration en `0600`)
 
 ## Backend OpenCode local

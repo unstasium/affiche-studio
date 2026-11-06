@@ -21,7 +21,7 @@
       <button class="btn btn-accent btn-block" id="btn-new" data-i18n="newProject"></button>
 
       <div class="search">
-        <span class="search-icon">⌕</span>
+        <span class="search-icon" data-icon="search" data-icon-size="15"></span>
         <input id="project-search" data-i18n-placeholder="searchProjects" autocomplete="off" />
       </div>
 
@@ -30,18 +30,19 @@
 
       <div class="sidebar-foot">
         <button class="side-action" id="btn-account">
-          <span>◎</span>
+          <span data-icon="account" data-icon-size="17"></span>
           <span class="side-action-text"><span data-i18n="account"></span><small id="account-version"></small></span>
           <span class="account-badge" id="update-badge" hidden></span>
         </button>
-        <button class="side-action" id="btn-templates"><span>▦</span><span data-i18n="templates"></span></button>
+        <button class="side-action" id="btn-templates"><span data-icon="templates" data-icon-size="17"></span><span data-i18n="templates"></span></button>
+        <button class="side-action" id="btn-help"><span data-icon="help" data-icon-size="17"></span><span data-i18n="help"></span></button>
         <button class="side-action" id="btn-settings">
           <span class="api-dot" id="api-dot"></span>
           <span class="side-action-text">
             <span data-i18n="apiSettings"></span>
             <small id="api-label"></small>
           </span>
-          <span class="chev">›</span>
+          <span class="chev" data-icon="chevronRight" data-icon-size="16"></span>
         </button>
         <div class="version" id="version-label"></div>
       </div>
@@ -69,17 +70,17 @@
           </div>
           <div class="topbar-actions">
             <div class="history-actions">
-              <button class="icon-btn" id="btn-undo" data-i18n-title="undo">↶</button>
-              <button class="icon-btn" id="btn-redo" data-i18n-title="redo">↷</button>
+              <button class="icon-btn" id="btn-undo" data-i18n-title="undo"><span data-icon="undo"></span></button>
+              <button class="icon-btn" id="btn-redo" data-i18n-title="redo"><span data-icon="redo"></span></button>
             </div>
             <div class="zoom">
-              <button class="icon-btn" id="zoom-out">−</button>
+              <button class="icon-btn" id="zoom-out"><span data-icon="zoomOut"></span></button>
               <span id="zoom-label">100%</span>
-              <button class="icon-btn" id="zoom-in">+</button>
-              <button class="icon-btn" id="zoom-fit" data-i18n-title="fit">⤢</button>
+              <button class="icon-btn" id="zoom-in"><span data-icon="zoomIn"></span></button>
+              <button class="icon-btn" id="zoom-fit" data-i18n-title="fit"><span data-icon="fit"></span></button>
             </div>
-            <button class="btn btn-ghost btn-sm" id="btn-versions" data-i18n="versions"></button>
-            <button class="btn btn-accent btn-sm" id="btn-export" data-i18n="export"></button>
+            <button class="btn btn-ghost btn-sm" id="btn-versions"><span data-icon="history"></span> <span data-i18n="versions"></span></button>
+            <button class="btn btn-accent btn-sm" id="btn-export"><span data-icon="download"></span> <span data-i18n="export"></span></button>
           </div>
         </header>
 
@@ -101,36 +102,40 @@
 
     <aside class="inspector" id="inspector">
       <div class="tabs" id="tabs">
-        <button class="tab active" data-tab="chat" data-i18n="chat"></button>
-        <button class="tab" data-tab="layers" data-i18n="layers"></button>
-        <button class="tab" data-tab="style" data-i18n="style"></button>
+        <button class="tab active" data-tab="chat"><span data-icon="chat" data-icon-size="14"></span><span data-i18n="chat"></span></button>
+        <button class="tab" data-tab="layers"><span data-icon="layers" data-icon-size="14"></span><span data-i18n="layers"></span></button>
+        <button class="tab" data-tab="style"><span data-icon="style" data-icon-size="14"></span><span data-i18n="style"></span></button>
       </div>
 
       <section class="tab-panel active" id="tab-chat">
         <div class="chat-scroll" id="chat-scroll">
           <div class="chat-empty" id="chat-empty">
-            <div class="chat-empty-icon">✳</div>
+            <div class="ai-orb"><span></span><i></i></div>
             <p data-i18n="chatEmptyTitle"></p>
             <span data-i18n="chatEmptyDesc"></span>
             <div class="suggestions" id="chat-suggestions"></div>
           </div>
           <div class="chat-messages" id="chat-messages"></div>
         </div>
+        <button class="scroll-bottom" id="scroll-bottom" data-icon="arrowDown" title="" hidden></button>
         <div class="chat-selection" id="chat-selection" hidden></div>
         <div class="chat-compose">
-          <textarea id="chat-input" rows="3" data-i18n-placeholder="chatPlaceholder"></textarea>
+          <div class="compose-shell">
+            <textarea id="chat-input" rows="1" data-i18n-placeholder="chatPlaceholder"></textarea>
+            <button class="send-btn" id="btn-send" data-icon="send" data-icon-size="18" data-i18n-title="send"></button>
+          </div>
           <div class="chat-actions">
-            <button class="btn btn-ghost btn-sm" id="btn-regenerate" data-i18n="regenerate"></button>
-            <button class="btn btn-accent btn-sm" id="btn-send" data-i18n="send"></button>
+            <button class="chip-btn" id="btn-regenerate"><span data-icon="refresh" data-icon-size="13"></span> <span data-i18n="regenerate"></span></button>
+            <span class="compose-hint" data-i18n="composeHint"></span>
           </div>
         </div>
       </section>
 
       <section class="tab-panel" id="tab-layers">
         <div class="panel-toolbar">
-          <button class="btn btn-mini" data-add="text" data-i18n="addText"></button>
-          <button class="btn btn-mini" data-add="image" data-i18n="addImage"></button>
-          <button class="btn btn-mini" data-add="shape" data-i18n="addShape"></button>
+          <button class="btn btn-mini" data-add="text"><span data-icon="text" data-icon-size="13"></span> <span data-i18n="addText"></span></button>
+          <button class="btn btn-mini" data-add="image"><span data-icon="image" data-icon-size="13"></span> <span data-i18n="addImage"></span></button>
+          <button class="btn btn-mini" data-add="shape"><span data-icon="shape" data-icon-size="13"></span> <span data-i18n="addShape"></span></button>
         </div>
         <div class="assets-strip">
           <div class="assets-strip-head"><span data-i18n="assets"></span><button class="btn btn-mini" id="btn-import-assets" data-i18n="importAssets"></button></div>
@@ -138,10 +143,10 @@
         </div>
         <div class="layers-list" id="layers-list"></div>
         <div class="panel-footer">
-          <button class="btn btn-mini" id="btn-group" data-i18n="group"></button>
-          <button class="btn btn-mini" id="btn-ungroup" data-i18n="ungroup"></button>
-          <button class="btn btn-mini" id="btn-duplicate" data-i18n="duplicate"></button>
-          <button class="btn btn-mini danger" id="btn-delete-layer" data-i18n="delete"></button>
+          <button class="btn btn-mini" id="btn-group"><span data-icon="group" data-icon-size="13"></span> <span data-i18n="group"></span></button>
+          <button class="btn btn-mini" id="btn-ungroup"><span data-icon="ungroup" data-icon-size="13"></span> <span data-i18n="ungroup"></span></button>
+          <button class="btn btn-mini" id="btn-duplicate"><span data-icon="copy" data-icon-size="13"></span> <span data-i18n="duplicate"></span></button>
+          <button class="btn btn-mini danger" id="btn-delete-layer"><span data-icon="trash" data-icon-size="13"></span> <span data-i18n="delete"></span></button>
         </div>
       </section>
 
@@ -156,7 +161,7 @@
     <div class="modal-card wide">
       <div class="modal-head">
         <div><h2 data-i18n="newProject"></h2><p data-i18n="newProjectDesc"></p></div>
-        <button class="icon-btn" data-close="modal-project">✕</button>
+        <button class="icon-btn" data-close="modal-project"><span data-icon="close" data-icon-size="15"></span></button>
       </div>
       <form id="project-form">
         <label class="field">
@@ -202,7 +207,7 @@
     <div class="modal-card">
       <div class="modal-head">
         <div><h2 data-i18n="settings"></h2><p data-i18n="settingsDesc"></p></div>
-        <button class="icon-btn" data-close="modal-settings">✕</button>
+        <button class="icon-btn" data-close="modal-settings"><span data-icon="close" data-icon-size="15"></span></button>
       </div>
       <form id="settings-form">
         <div class="section-label" data-i18n="appearance"></div>
@@ -267,7 +272,7 @@
     <div class="modal-card wide">
       <div class="modal-head">
         <div><h2 data-i18n="templates"></h2><p data-i18n="templatesDesc"></p></div>
-        <button class="icon-btn" data-close="modal-templates">✕</button>
+        <button class="icon-btn" data-close="modal-templates"><span data-icon="close" data-icon-size="15"></span></button>
       </div>
       <div class="template-grid" id="template-grid"></div>
     </div>
@@ -278,7 +283,7 @@
     <div class="modal-card small">
       <div class="modal-head">
         <div><h2 data-i18n="export"></h2><p data-i18n="exportDesc"></p></div>
-        <button class="icon-btn" data-close="modal-export">✕</button>
+        <button class="icon-btn" data-close="modal-export"><span data-icon="close" data-icon-size="15"></span></button>
       </div>
       <div class="export-grid">
         <button class="export-choice" data-export="png1"><strong>PNG ×1</strong><span data-i18n="exportPng1"></span></button>
@@ -294,7 +299,7 @@
     <div class="modal-card">
       <div class="modal-head">
         <div><h2 data-i18n="versions"></h2><p data-i18n="versionsDesc"></p></div>
-        <button class="icon-btn" data-close="modal-versions">✕</button>
+        <button class="icon-btn" data-close="modal-versions"><span data-icon="close" data-icon-size="15"></span></button>
       </div>
       <div class="versions-list" id="versions-list"></div>
     </div>
@@ -305,7 +310,7 @@
     <div class="modal-card">
       <div class="modal-head">
         <div><h2 data-i18n="projectSettings"></h2><p data-i18n="projectSettingsDesc"></p></div>
-        <button class="icon-btn" data-close="modal-meta">✕</button>
+        <button class="icon-btn" data-close="modal-meta"><span data-icon="close" data-icon-size="15"></span></button>
       </div>
       <form id="meta-form">
         <label class="field"><span data-i18n="projectName"></span><input type="text" id="meta-name" required /></label>
@@ -330,12 +335,41 @@
     </div>
   </div>
 
+  <!-- Aide -->
+  <div class="modal" id="modal-help" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <div><h2 data-i18n="help"></h2><p data-i18n="helpDesc"></p></div>
+        <button class="icon-btn" data-close="modal-help"><span data-icon="close" data-icon-size="15"></span></button>
+      </div>
+      <div class="section-label" data-i18n="shortcuts"></div>
+      <div class="shortcut-grid">
+        <div class="shortcut-row"><span data-i18n="cmdNew"></span><kbd>Ctrl N</kbd></div>
+        <div class="shortcut-row"><span data-i18n="cmdUndo"></span><kbd>Ctrl Z</kbd></div>
+        <div class="shortcut-row"><span data-i18n="cmdRedo"></span><kbd>Ctrl Shift Z</kbd></div>
+        <div class="shortcut-row"><span data-i18n="cmdDuplicate"></span><kbd>Ctrl D</kbd></div>
+        <div class="shortcut-row"><span data-i18n="cmdExport"></span><kbd>Ctrl E</kbd></div>
+        <div class="shortcut-row"><span data-i18n="cmdSaveVersion"></span><kbd>Ctrl S</kbd></div>
+        <div class="shortcut-row"><span data-i18n="cmdAddText"></span><kbd>T</kbd></div>
+        <div class="shortcut-row"><span data-i18n="cmdFit"></span><kbd>Shift 1</kbd></div>
+        <div class="shortcut-row"><span data-i18n="palettePlaceholder"></span><kbd>Ctrl K</kbd></div>
+        <div class="shortcut-row"><span data-i18n="help"></span><kbd>?</kbd></div>
+      </div>
+      <div class="help-tips">
+        <p data-i18n="helpTip1"></p>
+        <p data-i18n="helpTip2"></p>
+        <p data-i18n="helpTip3"></p>
+        <p data-i18n="helpTip4"></p>
+      </div>
+    </div>
+  </div>
+
   <!-- Compte -->
   <div class="modal" id="modal-account" hidden>
     <div class="modal-card">
       <div class="modal-head">
         <div><h2 data-i18n="account"></h2><p data-i18n="accountDesc"></p></div>
-        <button class="icon-btn" data-close="modal-account">✕</button>
+        <button class="icon-btn" data-close="modal-account"><span data-icon="close" data-icon-size="15"></span></button>
       </div>
       <div class="account-section">
         <div class="section-label" data-i18n="updates"></div>
@@ -354,9 +388,9 @@
       <div class="account-section">
         <div class="section-label" data-i18n="opencodeBackend"></div>
         <div class="account-links">
-          <button class="link-btn" data-url="https://opencode.ai/console">↗ <span data-i18n="openConsole"></span></button>
-          <button class="link-btn" data-url="https://github.com/unstasium/affiche-studio/releases/latest">↗ <span data-i18n="openReleases"></span></button>
-          <button class="link-btn" data-url="https://github.com/unstasium/affiche-studio">↗ <span data-i18n="openGithub"></span></button>
+          <button class="link-btn" data-url="https://opencode.ai/console"><span data-icon="external" data-icon-size="13"></span> <span data-i18n="openConsole"></span></button>
+          <button class="link-btn" data-url="https://github.com/unstasium/affiche-studio/releases/latest"><span data-icon="external" data-icon-size="13"></span> <span data-i18n="openReleases"></span></button>
+          <button class="link-btn" data-url="https://github.com/unstasium/affiche-studio"><span data-icon="external" data-icon-size="13"></span> <span data-i18n="openGithub"></span></button>
         </div>
       </div>
     </div>
@@ -375,6 +409,8 @@
   </div>
 
   <input type="file" id="file-input" multiple hidden accept="image/*,.woff,.woff2,.ttf,.otf" />
+
+  <div class="context-menu" id="context-menu" hidden></div>
 
   <div class="toast" id="toast" hidden>
     <span id="toast-text"></span>

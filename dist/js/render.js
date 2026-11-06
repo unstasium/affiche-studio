@@ -241,18 +241,17 @@ export function templateThumb(doc, assets) {
   const scale = Math.min(150 / doc.width, 190 / doc.height);
   const node = renderDocument(doc, assets);
   node.style.transform = `scale(${scale})`;
-  node.style.transformOrigin = "center center";
+  node.style.transformOrigin = "top left";
   const wrap = document.createElement("div");
   wrap.className = "mini";
   wrap.style.width = `${doc.width * scale}px`;
   wrap.style.height = `${doc.height * scale}px`;
   wrap.style.overflow = "hidden";
   wrap.style.position = "relative";
+  wrap.style.flex = "none";
   node.style.position = "absolute";
-  node.style.left = "50%";
-  node.style.top = "50%";
-  node.style.marginLeft = `${(-doc.width / 2) * scale}px`;
-  node.style.marginTop = `${(-doc.height / 2) * scale}px`;
+  node.style.left = "0";
+  node.style.top = "0";
   wrap.appendChild(node);
   return wrap;
 }

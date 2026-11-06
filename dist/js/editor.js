@@ -190,10 +190,10 @@ export class Editor {
     }
     const layer = this.doc.layers.find((value) => value.id === id);
     if (!layer || layer.locked) return;
-    this.pushHistory();
     const point = this.docPoint(event);
     this.drag = {
       type: "move",
+      historyPushed: false,
       start: point,
       layers: this.selection
         .map((sid) => this.doc.layers.find((l) => l.id === sid))
@@ -210,10 +210,10 @@ export class Editor {
     event.stopPropagation();
     const layer = this.getSelection()[0];
     if (!layer || layer.locked) return;
-    this.pushHistory();
     const point = this.docPoint(event);
     this.drag = {
       type: handle.dataset.h === "rot" ? "rotate" : "resize",
+      historyPushed: false,
       handle: handle.dataset.h,
       start: point,
       layer,
@@ -227,7 +227,13 @@ export class Editor {
     const point = this.docPoint(event);
     const dx = point.x - this.drag.start.x;
     const dy = point.y - this.drag.start.y;
-    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) this.drag.moved = true;
+    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+      this.drag.moved = true;
+      if (!this.drag.historyPushed) {
+        this.pushHistory();
+        this.drag.historyPushed = true;
+      }
+    }
 
     if (this.drag.type === "move") {
       this.handleMove(dx, dy, event);

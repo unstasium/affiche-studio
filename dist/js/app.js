@@ -1,6 +1,7 @@
 import { setLanguage, t, applyStatic, getLanguage } from "./i18n.js";
 import { Editor } from "./editor.js";
 import { documentToHtml, templateThumb, normalizeLayer, FONTS } from "./render.js";
+import { icon, paintIcons } from "./icons.js";
 import { TEMPLATES, PALETTE_PRESETS, buildTemplate } from "./templates.js";
 
 const invoke = window.__TAURI__?.core?.invoke;
@@ -51,6 +52,7 @@ const state = {
   paletteIndex: 0,
   paletteCommands: [],
   update: null,
+  clipboard: [],
 };
 
 function uid() {
@@ -77,8 +79,32 @@ async function boot() {
     toast(String(error), true);
   }
 
+  if (state.env?.devTheme) state.theme = state.env.devTheme;
+  if (state.env?.devLang) {
+    state.lang = state.env.devLang;
+    await setLanguage(state.lang);
+  }
+  applyPreferences();
   renderAll();
-  if (state.env?.devOpen) {
+  if (state.env?.devOpen === "help") {
+    openModal("modal-help");
+  } else if (state.env?.devOpen === "account") {
+    openAccount();
+  } else if (state.env?.devOpen === "layers") {
+    await openProject("demo-v21");
+    switchTab("layers");
+  } else if (state.env?.devOpen === "inspector") {
+    await openProject("demo-v21");
+    state.editor.select(["t1"]);
+    switchTab("style");
+  } else if (state.env?.devOpen === "templates") {
+    openTemplates();
+  } else if (state.env?.devOpen === "palette") {
+    openPalette();
+  } else if (state.env?.devOpen === "typing") {
+    await openProject("demo-v21");
+    showTyping();
+  } else if (state.env?.devOpen) {
     await openProject(state.env.devOpen);
   } else if (!state.settings?.hasKey && (state.settings?.backend || "api") === "api") {
     openSettings();
@@ -86,7 +112,15 @@ async function boot() {
 
   if (listen) {
     await listen("gen-chunk", (event) => updateLive(String(event.payload?.text || "").length));
-    await listen("gen-stage", () => updateLive(0));
+    await listen("gen-stage", () => {
+      if (state.generating && !$("#typing-row")) showTyping();
+    });
+    await listen("gen-chunk", (event) => {
+      if (state.generating) {
+        state.genChars = (state.genChars || 0) + String(event.payload?.text || "").length;
+        updateTypingStatus(state.genChars);
+      }
+    });
     await listen("update-progress", (event) => {
       const { chunk, total } = event.payload || {};
       const status = $("#update-status");
@@ -154,11 +188,14 @@ function renderAll() {
   renderProjects();
   renderApiStatus();
   renderVersion();
+  renderSuggestions();
   renderChat();
   renderLayers();
   renderStyle();
   renderAssets();
   renderChatSelection();
+  paintIcons();
+  autoGrow();
 }
 
 function renderEmptyKbd() {
@@ -184,8 +221,10 @@ function renderProjects() {
     list.appendChild(empty);
     return;
   }
+  let index = 0;
   for (const project of projects) {
     const item = document.createElement("button");
+    item.style.animationDelay = `${Math.min(index++, 14) * 18}ms`;
     item.className = "project-item" + (state.project?.id === project.id ? " active" : "");
     const name = document.createElement("span");
     name.className = "pi-name";
@@ -224,19 +263,138 @@ function renderChat() {
   messages.innerHTML = "";
   $("#chat-empty").hidden = state.chat.length > 0;
   for (const message of state.chat) {
-    const el = document.createElement("div");
-    el.className = `msg ${message.role}`;
-    el.textContent = message.content;
+    const row = document.createElement("div");
+    row.className = `msg-row ${message.role}${message.error ? " error" : ""}`;
+    const content = document.createElement("div");
+    content.className = "msg-content";
+
     if (message.role !== "system") {
-      const meta = document.createElement("small");
-      meta.className = "msg-meta";
-      meta.textContent = message.at ? new Date(message.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
-      el.appendChild(meta);
+      const avatar = document.createElement("div");
+      avatar.className = "msg-avatar";
+      avatar.innerHTML = icon(message.role === "user" ? "account" : "sparkles", 14);
+      row.appendChild(avatar);
+
+      const head = document.createElement("div");
+      head.className = "msg-head";
+      const who = document.createElement("span");
+      who.textContent = message.role === "user" ? t("chatYou") : t("chatAi");
+      const time = document.createElement("span");
+      time.textContent = formatTime(message.at);
+      head.append(who, time);
+      content.appendChild(head);
     }
-    messages.appendChild(el);
+
+    const bubble = document.createElement("div");
+    bubble.className = "msg-bubble";
+    bubble.innerHTML = renderChatText(message.content);
+    content.appendChild(bubble);
+
+    if (message.role !== "system") {
+      const actions = document.createElement("div");
+      actions.className = "msg-actions";
+      const copy = document.createElement("button");
+      copy.className = "msg-action";
+      copy.title = t("copy");
+      copy.innerHTML = icon("copy", 13);
+      copy.addEventListener("click", () => copyText(message.content));
+      actions.appendChild(copy);
+      if (message.role === "user" || message.error) {
+        const retry = document.createElement("button");
+        retry.className = "msg-action";
+        retry.title = t("retry");
+        retry.innerHTML = icon("refresh", 13);
+        retry.addEventListener("click", retryLast);
+        actions.appendChild(retry);
+      }
+      content.appendChild(actions);
+    }
+
+    row.appendChild(content);
+    messages.appendChild(row);
   }
+  paintIcons(messages);
+  scrollChat(state.chat.length > 0);
+}
+
+function renderChatText(value) {
+  return escapeHtml(String(value || ""))
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\n/g, "<br>");
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[char]);
+}
+
+function formatTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(t("copied"));
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+    toast(t("copied"));
+  }
+}
+
+function renderSuggestions() {
+  const box = $("#chat-suggestions");
+  if (!box) return;
+  box.innerHTML = "";
+  const items = [
+    { key: "suggest1", icon: "sparkles" },
+    { key: "suggest2", icon: "templates" },
+    { key: "suggest3", icon: "text" },
+  ];
+  for (const item of items) {
+    const button = document.createElement("button");
+    button.className = "suggestion";
+    button.innerHTML = `${icon(item.icon, 14)}<span>${escapeHtml(t(item.key))}</span>`;
+    button.addEventListener("click", () => {
+      $("#chat-input").value = t(item.key);
+      autoGrow();
+      $("#chat-input").focus();
+    });
+    box.appendChild(button);
+  }
+}
+
+function scrollChat(force = false) {
   const scroll = $("#chat-scroll");
-  scroll.scrollTop = scroll.scrollHeight;
+  if (!scroll) return;
+  const nearBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 140;
+  if (force || nearBottom) scroll.scrollTop = scroll.scrollHeight;
+  updateScrollButton();
+}
+
+function updateScrollButton() {
+  const scroll = $("#chat-scroll");
+  const button = $("#scroll-bottom");
+  if (!scroll || !button) return;
+  button.hidden = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 90;
+}
+
+function autoGrow() {
+  const input = $("#chat-input");
+  if (!input) return;
+  input.style.height = "auto";
+  input.style.height = `${Math.min(150, input.scrollHeight)}px`;
 }
 
 function renderChatSelection() {
@@ -272,7 +430,7 @@ function renderLayers() {
 
     const type = document.createElement("span");
     type.className = "layer-type";
-    type.textContent = layer.type === "text" ? "T" : layer.type === "image" ? "▣" : "●";
+    type.innerHTML = icon(layer.type === "text" ? "text" : layer.type === "image" ? "image" : "shape", 13);
 
     const name = document.createElement("span");
     name.className = "layer-name";
@@ -281,14 +439,14 @@ function renderLayers() {
     const actions = document.createElement("span");
     actions.className = "layer-actions";
     const eye = document.createElement("button");
-    eye.textContent = layer.hidden ? "◌" : "◉";
+    eye.innerHTML = icon(layer.hidden ? "eyeOff" : "eye", 12);
     eye.title = layer.hidden ? t("show") : t("hide");
     eye.addEventListener("click", (event) => {
       event.stopPropagation();
       state.editor.updateLayer(layer.id, { hidden: !layer.hidden });
     });
     const lock = document.createElement("button");
-    lock.textContent = layer.locked ? "▣" : "▢";
+    lock.innerHTML = icon(layer.locked ? "lock" : "unlock", 12);
     lock.title = layer.locked ? t("unlock") : t("lock");
     lock.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -385,7 +543,9 @@ function segmented(values, current, onChange) {
   for (const value of values) {
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = value.label;
+    if (value.icon) button.innerHTML = icon(value.icon, 14);
+    else button.textContent = value.label;
+    if (value.title) button.title = value.title;
     button.classList.toggle("active", value.id === current);
     button.addEventListener("click", () => onChange(value.id));
     wrap.appendChild(button);
@@ -403,6 +563,30 @@ function section(title, children) {
   return wrap;
 }
 
+function alignSelection(mode) {
+  const layers = state.selection
+    .map((id) => state.document.layers.find((layer) => layer.id === id))
+    .filter((layer) => layer && !layer.locked);
+  if (layers.length < 2) return;
+  const minX = Math.min(...layers.map((layer) => layer.x));
+  const maxX = Math.max(...layers.map((layer) => layer.x + layer.w));
+  const minY = Math.min(...layers.map((layer) => layer.y));
+  const maxY = Math.max(...layers.map((layer) => layer.y + layer.h));
+  state.editor.pushHistory();
+  for (const layer of layers) {
+    if (mode === "left") layer.x = minX;
+    if (mode === "centerH") layer.x = (minX + maxX) / 2 - layer.w / 2;
+    if (mode === "right") layer.x = maxX - layer.w;
+    if (mode === "top") layer.y = minY;
+    if (mode === "middleV") layer.y = (minY + maxY) / 2 - layer.h / 2;
+    if (mode === "bottom") layer.y = maxY - layer.h;
+    layer.x = Math.round(layer.x);
+    layer.y = Math.round(layer.y);
+  }
+  state.editor.render();
+  state.editor.onChange();
+}
+
 function renderStyle() {
   const panel = $("#style-panel");
   panel.innerHTML = "";
@@ -410,6 +594,28 @@ function renderStyle() {
   const layers = state.selection
     .map((id) => state.document.layers.find((layer) => layer.id === id))
     .filter(Boolean);
+
+  if (layers.length > 1) {
+    const alignGrid = document.createElement("div");
+    alignGrid.className = "grid-3";
+    const modes = [
+      ["left", "alignLeft", "left"],
+      ["centerH", "alignCenter", "center"],
+      ["right", "alignRight", "right"],
+      ["top", "alignTop", "top"],
+      ["middleV", "alignMiddle", "middle"],
+      ["bottom", "alignBottom", "bottom"],
+    ];
+    for (const [mode, iconName, label] of modes) {
+      const button = document.createElement("button");
+      button.className = "btn btn-mini";
+      button.title = t(label);
+      button.innerHTML = icon(iconName, 14);
+      button.addEventListener("click", () => alignSelection(mode));
+      alignGrid.appendChild(button);
+    }
+    panel.appendChild(section(t("align"), [alignGrid]));
+  }
 
   if (layers.length !== 1) {
     const grid = document.createElement("div");
@@ -449,7 +655,7 @@ function renderStyle() {
         input.type = "text";
         input.value = layer.name;
         input.addEventListener("change", () => update({ name: input.value }));
-        return control(t("projectName"), input);
+        return control(t("layerNameLabel"), input);
       })(),
     ])
   );
@@ -496,19 +702,19 @@ function renderStyle() {
 
     const align = segmented(
       [
-        { id: "left", label: "◧" },
-        { id: "center", label: "▣" },
-        { id: "right", label: "◨" },
-        { id: "justify", label: "☰" },
+        { id: "left", icon: "alignLeft", title: t("left") },
+        { id: "center", icon: "alignCenter", title: t("center") },
+        { id: "right", icon: "alignRight", title: t("right") },
+        { id: "justify", icon: "alignJustify", title: t("justify") },
       ],
       layer.style.align,
       (value) => update({ style: { align: value } })
     );
     const valign = segmented(
       [
-        { id: "top", label: "↑" },
-        { id: "middle", label: "↕" },
-        { id: "bottom", label: "↓" },
+        { id: "top", icon: "alignTop", title: t("top") },
+        { id: "middle", icon: "alignMiddle", title: t("middle") },
+        { id: "bottom", icon: "alignBottom", title: t("bottom") },
       ],
       layer.style.valign,
       (value) => update({ style: { valign: value } })
@@ -592,19 +798,19 @@ function renderStyle() {
   arrange.className = "grid-2";
   const forward = document.createElement("button");
   forward.className = "btn btn-mini";
-  forward.textContent = t("bringForward");
+  forward.innerHTML = `${icon("arrowUp", 13)} ${t("bringForward")}`;
   forward.addEventListener("click", () => state.editor.bringForward());
   const backward = document.createElement("button");
   backward.className = "btn btn-mini";
-  backward.textContent = t("sendBackward");
+  backward.innerHTML = `${icon("arrowDown", 13)} ${t("sendBackward")}`;
   backward.addEventListener("click", () => state.editor.sendBackward());
   const dup = document.createElement("button");
   dup.className = "btn btn-mini";
-  dup.textContent = t("duplicate");
+  dup.innerHTML = `${icon("copy", 13)} ${t("duplicate")}`;
   dup.addEventListener("click", () => state.editor.duplicateSelection());
   const del = document.createElement("button");
   del.className = "btn btn-mini danger";
-  del.textContent = t("delete");
+  del.innerHTML = `${icon("trash", 13)} ${t("delete")}`;
   del.addEventListener("click", () => state.editor.deleteSelection());
   arrange.append(forward, backward, dup, del);
   panel.appendChild(section(t("arrange"), [arrange]));
@@ -765,12 +971,14 @@ function openTemplates() {
   grid.innerHTML = "";
   const palette = PALETTE_PRESETS[1].colors;
   for (const template of TEMPLATES) {
-    const document = buildTemplate(template.id, state.lang, palette);
+    const templateDoc = buildTemplate(template.id, state.lang, palette);
+    templateDoc.width = 1080;
+    templateDoc.height = 1920;
     const card = document.createElement("button");
     card.className = "template-card";
     const thumb = document.createElement("div");
     thumb.className = "template-thumb";
-    thumb.appendChild(templateThumb(document, []));
+    thumb.appendChild(templateThumb(templateDoc, []));
     const info = document.createElement("div");
     info.className = "template-info";
     const title = document.createElement("strong");
@@ -804,41 +1012,76 @@ function openTemplates() {
 /* Chat / AI                                                           */
 /* ------------------------------------------------------------------ */
 
-let liveEl = null;
-let liveChars = 0;
-
-function updateLive(chars) {
-  if (!state.generating) return;
-  liveChars += chars;
-  if (!liveEl) {
-    liveEl = document.createElement("div");
-    liveEl.className = "gen-live";
-    liveEl.innerHTML = `<span class="pulse"></span><span class="live-text"></span>`;
-    $("#chat-scroll").appendChild(liveEl);
-  }
-  liveEl.classList.remove("error");
-  liveEl.querySelector(".live-text").textContent = `${t("generating")} · ${liveChars.toLocaleString()} car.`;
-  const scroll = $("#chat-scroll");
-  scroll.scrollTop = scroll.scrollHeight;
+function friendlyError(error) {
+  const text = String(error);
+  if (text.includes("402")) return t("errorBilling");
+  if (text.includes("401")) return t("errorAuth");
+  if (/opencode/i.test(text) && /introuvable|Impossible de lancer/i.test(text)) return t("errorOpencode");
+  if (/dépassé|timeout|timed out/i.test(text)) return t("errorTimeout");
+  return text;
 }
 
-function makeLiveError(message) {
-  if (!liveEl) {
-    liveEl = document.createElement("div");
-    liveEl.className = "gen-live";
-    $("#chat-scroll").appendChild(liveEl);
-  }
-  liveEl.classList.add("error");
-  liveEl.textContent = message;
+const THINKING_STEPS = ["stepBrief", "stepPalette", "stepLayers", "stepCheck"];
+let typingTimer = null;
+let typingStarted = 0;
+
+function showTyping() {
+  removeTyping();
+  typingStarted = Date.now();
+  const row = document.createElement("div");
+  row.id = "typing-row";
+  row.className = "msg-row assistant typing-row";
+  row.innerHTML = `
+    <div class="msg-avatar">${icon("sparkles", 14)}</div>
+    <div class="msg-content">
+      <div class="msg-head"><span>${escapeHtml(t("chatAi"))}</span><span>${escapeHtml(t("thinking"))}</span></div>
+      <div class="msg-bubble">
+        <div class="typing-dots"><i class="typing-dot"></i><i class="typing-dot"></i><i class="typing-dot"></i></div>
+        <div class="typing-status" id="typing-status"></div>
+      </div>
+    </div>`;
+  $("#chat-messages").appendChild(row);
+  updateTypingStatus();
+  typingTimer = setInterval(() => updateTypingStatus(), 1000);
+  scrollChat(true);
 }
 
-async function sendChat(regenerate = false) {
+function updateTypingStatus(chars = 0) {
+  const el = $("#typing-status");
+  if (!el) return;
+  const seconds = Math.max(1, Math.round((Date.now() - typingStarted) / 1000));
+  const step = t(THINKING_STEPS[Math.floor(seconds / 4) % THINKING_STEPS.length]);
+  const extra = chars ? ` · ${Number(chars).toLocaleString()} car.` : "";
+  el.innerHTML = `${escapeHtml(step)} · <b>${seconds}s</b>${extra}`;
+}
+
+function removeTyping() {
+  clearInterval(typingTimer);
+  typingTimer = null;
+  $("#typing-row")?.remove();
+}
+
+function retryLast() {
+  const lastUser = [...state.chat].reverse().find((message) => message.role === "user");
+  if (!lastUser) return;
+  $("#chat-input").value = lastUser.content.replace(/^↻\s*/, "");
+  autoGrow();
+  sendChat(false, { silent: true });
+}
+
+async function sendChat(regenerate = false, { silent = false } = {}) {
   if (!state.project || state.generating) return;
-  if (!state.settings?.hasKey) {
+  const backend = state.settings?.backend || "api";
+  if (backend === "api" && !state.settings?.hasKey) {
     openSettings();
     toast(t("noApiKey"), true);
     return;
   }
+  if (backend === "opencode" && !state.env?.opencode) {
+    toast(t("errorOpencode"), true);
+    return;
+  }
+
   let instruction = $("#chat-input").value.trim();
   if (regenerate && !instruction) {
     const lastUser = [...state.chat].reverse().find((message) => message.role === "user");
@@ -850,22 +1093,23 @@ async function sendChat(regenerate = false) {
     return;
   }
 
-  $("#chat-input").value = "";
-  state.chat.push({
-    role: "user",
-    content: regenerate ? `↻ ${instruction}` : instruction,
-    at: new Date().toISOString(),
-  });
-  renderChat();
-  saveChat();
+  if (!silent) {
+    $("#chat-input").value = "";
+    autoGrow();
+    state.chat.push({
+      role: "user",
+      content: regenerate ? `↻ ${instruction}` : instruction,
+      at: new Date().toISOString(),
+    });
+    renderChat();
+    saveChat();
+  }
 
   state.generating = true;
-  liveChars = 0;
-  liveEl = null;
-  updateLive(0);
+  state.genChars = 0;
   const button = $("#btn-send");
   button.disabled = true;
-  button.textContent = t("stop");
+  showTyping();
 
   try {
     const document = await invoke("generate_design", {
@@ -874,16 +1118,18 @@ async function sendChat(regenerate = false) {
       regenerate,
       selected: state.selection,
     });
+    removeTyping();
     state.document = document;
     state.selection = [];
     state.editor.setAssets(state.assets);
     state.editor.setDocument(document, { reset: false });
+    state.editor.select([]);
     renderLayers();
     renderStyle();
     renderChatSelection();
     state.chat.push({
       role: "assistant",
-      content: `✓ ${t("genDone")} — ${document.layers.length} ${t("layersCount")}`,
+      content: `**${t("genDone")}** · ${document.layers.length} ${t("layersCount")}`,
       at: new Date().toISOString(),
     });
     saveChat();
@@ -891,21 +1137,20 @@ async function sendChat(regenerate = false) {
     markDirty();
     toast(t("genDone"));
   } catch (error) {
-    state.chat.push({ role: "system", content: String(error), at: new Date().toISOString() });
+    removeTyping();
+    const message = friendlyError(error);
+    state.chat.push({
+      role: "assistant",
+      content: message,
+      at: new Date().toISOString(),
+      error: true,
+    });
     saveChat();
     renderChat();
-    makeLiveError(String(error));
-    toast(String(error), true);
+    toast(message, true);
   } finally {
     state.generating = false;
     button.disabled = false;
-    button.textContent = t("send");
-    if (liveEl) {
-      setTimeout(() => {
-        liveEl?.remove();
-        liveEl = null;
-      }, 1800);
-    }
   }
 }
 
@@ -1552,7 +1797,7 @@ function renderPalette() {
   filtered.forEach((command, index) => {
     const button = document.createElement("button");
     button.className = "palette-item" + (index === state.paletteIndex ? " active" : "");
-    button.innerHTML = `<span>${escapeText(command.label)}</span><span>${t("commandHint")}</span>`;
+    button.innerHTML = `<span class="pi-label">${escapeText(command.label)}</span><span class="pi-hint">${t("commandHint")}</span>`;
     button.addEventListener("click", () => {
       closeModal("modal-palette");
       command.run();
@@ -1605,6 +1850,64 @@ function toast(message, isError = false, path = null) {
 /* Events                                                              */
 /* ------------------------------------------------------------------ */
 
+let contextTarget = null;
+
+function openContextMenu(event) {
+  const layerEl = event.target.closest?.(".canvas-layer");
+  hideContextMenu();
+  if (!layerEl) return;
+  event.preventDefault();
+  const id = layerEl.dataset.layerId;
+  const layer = state.document?.layers.find((value) => value.id === id);
+  if (!layer) return;
+  if (!state.selection.includes(id)) state.editor.select([id]);
+  contextTarget = layer;
+  const menu = $("#context-menu");
+  menu.innerHTML = "";
+
+  const add = (label, iconName, action, danger = false) => {
+    const button = document.createElement("button");
+    button.innerHTML = `${icon(iconName, 14)} <span>${escapeHtml(label)}</span>`;
+    if (danger) button.classList.add("danger");
+    button.addEventListener("click", () => {
+      hideContextMenu();
+      action();
+    });
+    menu.appendChild(button);
+  };
+  const sep = () => {
+    const line = document.createElement("div");
+    line.className = "sep";
+    menu.appendChild(line);
+  };
+
+  add(t("duplicate"), "copy", () => state.editor.duplicateSelection());
+  add(t("bringForward"), "arrowUp", () => state.editor.bringForward());
+  add(t("sendBackward"), "arrowDown", () => state.editor.sendBackward());
+  sep();
+  add(layer.locked ? t("unlock") : t("lock"), layer.locked ? "unlock" : "lock", () =>
+    state.editor.updateLayer(layer.id, { locked: !layer.locked })
+  );
+  add(layer.hidden ? t("show") : t("hide"), layer.hidden ? "eye" : "eyeOff", () =>
+    state.editor.updateLayer(layer.id, { hidden: !layer.hidden })
+  );
+  sep();
+  add(t("delete"), "trash", () => state.editor.deleteSelection(), true);
+
+  menu.hidden = false;
+  const width = 200;
+  const height = menu.offsetHeight || 240;
+  menu.style.left = `${Math.min(event.clientX, window.innerWidth - width - 8)}px`;
+  menu.style.top = `${Math.min(event.clientY, window.innerHeight - height - 8)}px`;
+  paintIcons(menu);
+}
+
+function hideContextMenu() {
+  const menu = $("#context-menu");
+  if (menu) menu.hidden = true;
+  contextTarget = null;
+}
+
 function bindEvents() {
   $("#btn-account").addEventListener("click", openAccount);
   $("#btn-check-update").addEventListener("click", () => checkUpdates(false));
@@ -1638,6 +1941,15 @@ function bindEvents() {
     state.zoomed = false;
     state.editor.fit();
   });
+  $("#zoom-label").addEventListener("click", () => {
+    state.zoomed = true;
+    state.editor.setZoom(1);
+  });
+  $("#canvas").addEventListener("contextmenu", openContextMenu);
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest?.("#context-menu")) hideContextMenu();
+  });
+  $("#chat-scroll").addEventListener("scroll", hideContextMenu);
 
   $("#tabs").addEventListener("click", (event) => {
     const tab = event.target.closest(".tab");
@@ -1646,18 +1958,16 @@ function bindEvents() {
 
   $("#btn-send").addEventListener("click", () => sendChat(false));
   $("#btn-regenerate").addEventListener("click", () => sendChat(true));
+  $("#btn-help").addEventListener("click", () => openModal("modal-help"));
   $("#chat-input").addEventListener("keydown", (event) => {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
       sendChat(false);
     }
   });
-  $$("#chat-suggestions .suggestion").forEach((button) => {
-    button.addEventListener("click", () => {
-      $("#chat-input").value = button.textContent;
-      $("#chat-input").focus();
-    });
-  });
+  $("#chat-input").addEventListener("input", autoGrow);
+  $("#chat-scroll").addEventListener("scroll", updateScrollButton);
+  $("#scroll-bottom").addEventListener("click", () => scrollChat(true));
 
   $$("[data-add]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1739,6 +2049,25 @@ function bindEvents() {
   });
 }
 
+function pasteLayers() {
+  if (!state.clipboard.length || !state.document) return;
+  state.editor.pushHistory();
+  const created = [];
+  for (const layer of state.clipboard) {
+    const clone = JSON.parse(JSON.stringify(layer));
+    clone.id = uid();
+    clone.name = `${layer.name} copie`;
+    clone.x += 24;
+    clone.y += 24;
+    clone.groupId = null;
+    state.document.layers.push(clone);
+    created.push(clone.id);
+  }
+  state.editor.render();
+  state.editor.select(created);
+  state.editor.onChange();
+}
+
 function onKeyDown(event) {
   const target = event.target;
   const typing =
@@ -1755,6 +2084,11 @@ function onKeyDown(event) {
   if (event.key === "Escape") {
     $$(".modal:not([hidden])").forEach((modal) => closeModal(modal.id));
     if (state.editor) state.editor.select([]);
+    return;
+  }
+  if (event.key === "?" && !typing) {
+    event.preventDefault();
+    openModal("modal-help");
     return;
   }
   if (typing || !state.project) return;
@@ -1790,6 +2124,33 @@ function onKeyDown(event) {
   if (mod && event.key.toLowerCase() === "e") {
     event.preventDefault();
     openModal("modal-export");
+    return;
+  }
+  if (mod && event.key.toLowerCase() === "n") {
+    event.preventDefault();
+    openNewProject();
+    return;
+  }
+  if (mod && event.key.toLowerCase() === "c" && state.selection.length) {
+    event.preventDefault();
+    state.clipboard = state.editor.getSelection().map((layer) => JSON.parse(JSON.stringify(layer)));
+    toast(t("copied"));
+    return;
+  }
+  if (mod && event.key.toLowerCase() === "v" && state.clipboard.length) {
+    event.preventDefault();
+    pasteLayers();
+    return;
+  }
+  if (event.key.toLowerCase() === "t" && !mod) {
+    event.preventDefault();
+    addTextLayer();
+    return;
+  }
+  if (event.shiftKey && event.code === "Digit1") {
+    event.preventDefault();
+    state.zoomed = false;
+    state.editor.fit();
     return;
   }
   if (event.key === "Delete" || event.key === "Backspace") {

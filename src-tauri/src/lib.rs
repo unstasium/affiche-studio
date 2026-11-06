@@ -30,6 +30,8 @@ struct Environment {
     version: String,
     opencode: Option<String>,
     dev_open: Option<String>,
+    dev_theme: Option<String>,
+    dev_lang: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -130,6 +132,8 @@ fn environment(state: State<'_, AppState>) -> Environment {
         version: env!("CARGO_PKG_VERSION").to_string(),
         opencode: find_opencode().map(|p| p.to_string_lossy().to_string()),
         dev_open: std::env::var("AFFICHE_STUDIO_OPEN").ok(),
+        dev_theme: std::env::var("AFFICHE_STUDIO_THEME").ok(),
+        dev_lang: std::env::var("AFFICHE_STUDIO_LANG").ok(),
     }
 }
 
@@ -138,6 +142,7 @@ fn find_opencode() -> Option<std::path::PathBuf> {
     let mut names = vec!["opencode".to_string()];
     #[cfg(windows)]
     names.push("opencode.exe".to_string());
+
     if let Some(path) = std::env::var_os("PATH") {
         for dir in std::env::split_paths(&path) {
             for name in &names {
@@ -146,6 +151,32 @@ fn find_opencode() -> Option<std::path::PathBuf> {
                     return Some(candidate);
                 }
             }
+        }
+    }
+
+    // Les apps lancées depuis le bureau n'ont pas toujours le PATH du shell.
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(std::path::PathBuf::from);
+    if let Some(home) = home {
+        for relative in [
+            ".opencode/bin/opencode",
+            ".local/bin/opencode",
+            ".bun/bin/opencode",
+            ".cargo/bin/opencode",
+            "bin/opencode",
+            ".local/share/opencode/bin/opencode",
+        ] {
+            let candidate = home.join(relative);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+    }
+    for absolute in ["/usr/local/bin/opencode", "/usr/bin/opencode", "/opt/opencode/bin/opencode"] {
+        let candidate = std::path::PathBuf::from(absolute);
+        if candidate.is_file() {
+            return Some(candidate);
         }
     }
     None
