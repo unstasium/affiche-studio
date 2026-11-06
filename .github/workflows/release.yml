@@ -190,3 +190,13 @@ jobs:
           tag_name: ${{ github.ref_name }}
           draft: true
           files: affiche-studio.flatpak
+
+  publish:
+    needs: [build, flatpak]
+    if: always() && needs.build.result == 'success' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the release
+        run: gh release edit "${{ github.ref_name }}" --draft=false --latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
