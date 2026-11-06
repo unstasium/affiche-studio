@@ -49,7 +49,7 @@ export class Editor {
   setZoom(scale) {
     if (!this.doc) return;
     this.scale = Math.max(0.05, Math.min(4, scale));
-    this.shell.style.transform = `scale(${this.scale})`;
+    this.shell.style.transform = `translate(-50%, -50%) scale(${this.scale})`;
     this.renderOverlay();
     this.onZoom(this.scale);
   }

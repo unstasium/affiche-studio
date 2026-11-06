@@ -162,10 +162,20 @@ fn read_meta(dir: &Path) -> Option<ProjectMeta> {
 }
 
 fn read_document(dir: &Path) -> Document {
-    fs::read_to_string(dir.join("document.json"))
-        .ok()
-        .and_then(|raw| serde_json::from_str::<Document>(&raw).ok())
-        .unwrap_or_default()
+    let raw = match fs::read_to_string(dir.join("document.json")) {
+        Ok(raw) => raw,
+        Err(error) => {
+            eprintln!("document read error: {error}");
+            return Document::default();
+        }
+    };
+    match serde_json::from_str::<Document>(&raw) {
+        Ok(document) => document,
+        Err(error) => {
+            eprintln!("document parse error: {error}");
+            Document::default()
+        }
+    }
 }
 
 fn read_chat(dir: &Path) -> Vec<ChatMessage> {

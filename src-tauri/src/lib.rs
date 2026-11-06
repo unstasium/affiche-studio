@@ -28,6 +28,8 @@ struct Environment {
     has_key: bool,
     projects_dir: String,
     version: String,
+    opencode: Option<String>,
+    dev_open: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -35,6 +37,34 @@ struct Environment {
 struct ExportResult {
     path: String,
     browser: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateInfo {
+    available: bool,
+    current_version: String,
+    version: Option<String>,
+    notes: Option<String>,
+    date: Option<String>,
+    can_auto_install: bool,
+}
+
+fn can_auto_install() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        return std::env::var_os("APPIMAGE").is_some();
+    }
+    #[cfg(windows)]
+    {
+        return true;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        return false;
+    }
+    #[allow(unreachable_code)]
+    false
 }
 
 #[tauri::command]
@@ -50,8 +80,13 @@ fn save_settings(
     api_key: Option<String>,
     remember_key: bool,
     reasoning_effort: Option<String>,
+    backend: Option<String>,
 ) -> Result<SettingsView, String> {
     let mut settings = state.settings.lock().unwrap();
+    let backend = backend
+        .map(|value| value.trim().to_ascii_lowercase())
+        .unwrap_or_else(|| "api".to_string());
+    settings.backend = if backend == "opencode" { "opencode".into() } else { "api".into() };
     settings.base_url = base_url.trim().trim_end_matches('/').to_string();
     settings.model = model.trim().to_string();
     settings.remember_key = remember_key;
@@ -64,7 +99,7 @@ fn save_settings(
     settings.reasoning_effort = reasoning_effort
         .map(|v| v.trim().to_ascii_lowercase())
         .filter(|v| !v.is_empty() && v != "default");
-    if settings.base_url.is_empty() {
+    if settings.backend == "api" && settings.base_url.is_empty() {
         return Err("L'URL de l'API est vide.".into());
     }
     if settings.model.is_empty() {
@@ -93,7 +128,27 @@ fn environment(state: State<'_, AppState>) -> Environment {
         has_key: !state.settings.lock().unwrap().api_key.is_empty(),
         projects_dir: state.projects_dir.to_string_lossy().to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
+        opencode: find_opencode().map(|p| p.to_string_lossy().to_string()),
+        dev_open: std::env::var("AFFICHE_STUDIO_OPEN").ok(),
     }
+}
+
+fn find_opencode() -> Option<std::path::PathBuf> {
+    #[allow(unused_mut)]
+    let mut names = vec!["opencode".to_string()];
+    #[cfg(windows)]
+    names.push("opencode.exe".to_string());
+    if let Some(path) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&path) {
+            for name in &names {
+                let candidate = dir.join(name);
+                if candidate.is_file() {
+                    return Some(candidate);
+                }
+            }
+        }
+    }
+    None
 }
 
 #[tauri::command]
@@ -357,6 +412,64 @@ fn export_html(
 }
 
 #[tauri::command]
+async fn check_update(app: AppHandle) -> Result<UpdateInfo, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let current_version = app.package_info().version.to_string();
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    let update = updater.check().await.map_err(|e| e.to_string())?;
+    Ok(match update {
+        Some(update) => UpdateInfo {
+            available: true,
+            current_version,
+            version: Some(update.version.clone()),
+            notes: update.body.clone(),
+            date: update.date.map(|value| value.to_string()),
+            can_auto_install: can_auto_install(),
+        },
+        None => UpdateInfo {
+            available: false,
+            current_version,
+            version: None,
+            notes: None,
+            date: None,
+            can_auto_install: can_auto_install(),
+        },
+    })
+}
+
+#[tauri::command]
+async fn install_update(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    let update = updater.check().await.map_err(|e| e.to_string())?;
+    if let Some(update) = update {
+        update
+            .download_and_install(
+                |chunk, total| {
+                    let _ = app.emit(
+                        "update-progress",
+                        serde_json::json!({ "chunk": chunk, "total": total }),
+                    );
+                },
+                || {
+                    let _ = app.emit("update-downloaded", serde_json::json!({}));
+                },
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("URL invalide.".into());
+    }
+    export::open_url(&url)
+}
+
+#[tauri::command]
 fn reveal_path(path: String) -> Result<(), String> {
     let path = std::path::PathBuf::from(path);
     let target = if path.is_file() {
@@ -373,6 +486,7 @@ fn reveal_path(path: String) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let data_dir = app
                 .path()
@@ -421,6 +535,9 @@ pub fn run() {
             export_png,
             export_pdf,
             export_html,
+            check_update,
+            install_update,
+            open_url,
             reveal_path
         ])
         .run(tauri::generate_context!())

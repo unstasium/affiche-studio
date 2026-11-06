@@ -29,6 +29,11 @@
       <div class="project-list" id="project-list"></div>
 
       <div class="sidebar-foot">
+        <button class="side-action" id="btn-account">
+          <span>◎</span>
+          <span class="side-action-text"><span data-i18n="account"></span><small id="account-version"></small></span>
+          <span class="account-badge" id="update-badge" hidden></span>
+        </button>
         <button class="side-action" id="btn-templates"><span>▦</span><span data-i18n="templates"></span></button>
         <button class="side-action" id="btn-settings">
           <span class="api-dot" id="api-dot"></span>
@@ -224,21 +229,31 @@
         </div>
 
         <div class="section-label" data-i18n="api"></div>
-        <label class="field"><span data-i18n="baseUrl"></span><input type="url" id="set-base-url" required /></label>
-        <div class="two-cols">
-          <label class="field"><span data-i18n="model"></span><input type="text" id="set-model" required /></label>
-          <label class="field"><span data-i18n="reasoning"></span>
-            <select id="set-reasoning">
-              <option value="" data-i18n="reasoningDefault"></option>
-              <option value="low">low</option>
-              <option value="medium">medium</option>
-              <option value="high">high</option>
-              <option value="max">max</option>
-            </select>
-          </label>
+        <div class="field">
+          <span data-i18n="provider"></span>
+          <div class="segmented" id="set-backend">
+            <button type="button" data-backend="api" data-i18n="providerApi"></button>
+            <button type="button" data-backend="opencode" data-i18n="providerOpenCode"></button>
+          </div>
         </div>
-        <label class="field"><span data-i18n="apiKey"></span><input type="password" id="set-api-key" autocomplete="off" /><small id="key-hint"></small></label>
-        <label class="check"><input type="checkbox" id="set-remember" /><span data-i18n="rememberKey"></span></label>
+        <div id="api-fields">
+          <label class="field"><span data-i18n="baseUrl"></span><input type="url" id="set-base-url" /></label>
+          <label class="field"><span data-i18n="model"></span><input type="text" id="set-model" /></label>
+          <label class="field"><span data-i18n="apiKey"></span><input type="password" id="set-api-key" autocomplete="off" /><small id="key-hint"></small></label>
+          <label class="check"><input type="checkbox" id="set-remember" /><span data-i18n="rememberKey"></span></label>
+        </div>
+        <div id="opencode-fields" hidden>
+          <label class="field"><span data-i18n="opencodeModel"></span><input type="text" id="set-opencode-model" placeholder="opencode-go/deepseek-v4.1-flash" /><small data-i18n="opencodeHint"></small></label>
+        </div>
+        <label class="field"><span data-i18n="reasoning"></span>
+          <select id="set-reasoning">
+            <option value="" data-i18n="reasoningDefault"></option>
+            <option value="low">low</option>
+            <option value="medium">medium</option>
+            <option value="high">high</option>
+            <option value="max">max</option>
+          </select>
+        </label>
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost" id="btn-clear-key" data-i18n="clearKey"></button>
           <button type="submit" class="btn btn-accent" data-i18n="save"></button>
@@ -312,6 +327,38 @@
           <button type="submit" class="btn btn-accent" data-i18n="save"></button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Compte -->
+  <div class="modal" id="modal-account" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <div><h2 data-i18n="account"></h2><p data-i18n="accountDesc"></p></div>
+        <button class="icon-btn" data-close="modal-account">✕</button>
+      </div>
+      <div class="account-section">
+        <div class="section-label" data-i18n="updates"></div>
+        <div class="account-row"><span data-i18n="currentVersion"></span><strong id="acc-current">—</strong></div>
+        <div class="account-row"><span data-i18n="opencodeBackend"></span><strong id="acc-backend">—</strong></div>
+        <div class="account-row"><span data-i18n="modelLabel"></span><strong id="acc-model">—</strong></div>
+        <div class="account-row"><span data-i18n="effortLabel"></span><strong id="acc-effort">—</strong></div>
+        <div class="account-status" id="update-status"></div>
+        <pre class="update-notes" id="update-notes" hidden></pre>
+        <div class="account-actions">
+          <button class="btn btn-ghost btn-sm" id="btn-check-update" data-i18n="checkUpdates"></button>
+          <button class="btn btn-accent btn-sm" id="btn-install-update" data-i18n="installUpdate" hidden></button>
+        </div>
+        <p class="security-note" data-i18n="updatesHint"></p>
+      </div>
+      <div class="account-section">
+        <div class="section-label" data-i18n="opencodeBackend"></div>
+        <div class="account-links">
+          <button class="link-btn" data-url="https://opencode.ai/console">↗ <span data-i18n="openConsole"></span></button>
+          <button class="link-btn" data-url="https://github.com/unstasium/affiche-studio/releases/latest">↗ <span data-i18n="openReleases"></span></button>
+          <button class="link-btn" data-url="https://github.com/unstasium/affiche-studio">↗ <span data-i18n="openGithub"></span></button>
+        </div>
+      </div>
     </div>
   </div>
 

@@ -50,6 +50,7 @@ const state = {
   toastTimer: null,
   paletteIndex: 0,
   paletteCommands: [],
+  update: null,
 };
 
 function uid() {
@@ -77,14 +78,28 @@ async function boot() {
   }
 
   renderAll();
-  if (!state.settings?.hasKey) {
+  if (state.env?.devOpen) {
+    await openProject(state.env.devOpen);
+  } else if (!state.settings?.hasKey && (state.settings?.backend || "api") === "api") {
     openSettings();
   }
 
   if (listen) {
     await listen("gen-chunk", (event) => updateLive(String(event.payload?.text || "").length));
     await listen("gen-stage", () => updateLive(0));
+    await listen("update-progress", (event) => {
+      const { chunk, total } = event.payload || {};
+      const status = $("#update-status");
+      if (!status) return;
+      if (total) {
+        status.textContent = `${t("updateStarted")} ${Math.round((chunk / total) * 100)}%`;
+      } else {
+        status.textContent = t("updateStarted");
+      }
+    });
   }
+
+  setTimeout(() => checkUpdates(true), 3000);
 }
 
 function loadPreferences() {
@@ -151,7 +166,10 @@ function renderEmptyKbd() {
 }
 
 function renderVersion() {
-  $("#version-label").textContent = state.env?.version ? `v${state.env.version}` : "v2.0.0";
+  const version = state.env?.version ? `v${state.env.version}` : "v2.0.0";
+  $("#version-label").textContent = version;
+  const accountVersion = $("#account-version");
+  if (accountVersion) accountVersion.textContent = version;
 }
 
 function renderProjects() {
@@ -182,6 +200,15 @@ function renderProjects() {
 }
 
 function renderApiStatus() {
+  const backend = state.settings?.backend || "api";
+  if (backend === "opencode") {
+    const ok = Boolean(state.env?.opencode);
+    $("#api-dot").classList.toggle("ok", ok);
+    $("#api-label").textContent = ok
+      ? `OpenCode · ${state.settings.model}`
+      : t("opencodeMissing");
+    return;
+  }
   const ok = Boolean(state.settings?.hasKey);
   $("#api-dot").classList.toggle("ok", ok);
   $("#api-label").textContent = ok ? state.settings.model || t("apiConfigured") : t("apiNotConfigured");
@@ -416,7 +443,7 @@ function renderStyle() {
   const update = (patch) => state.editor.updateLayer(layer.id, patch);
 
   panel.appendChild(
-    section(t("layerText").replace(/^./, (c) => c.toUpperCase()), [
+    section(t("layerName"), [
       (() => {
         const input = document.createElement("input");
         input.type = "text";
@@ -648,14 +675,16 @@ async function openNewProject() {
   $("#proj-name").value = "";
   $("#custom-size").hidden = true;
   renderFormatGroups();
-  renderPaletteRow($("#project-palettes"), state.selectedPalette, (colors) => {
+  const applyProjectPalette = (colors) => {
     state.selectedPalette = colors;
-    renderPaletteRow($("#project-palettes"), colors, arguments.callee);
-  });
-  renderSegmented($("#project-language"), "lang", state.projectLang, (value) => {
+    renderPaletteRow($("#project-palettes"), colors, applyProjectPalette);
+  };
+  renderPaletteRow($("#project-palettes"), state.selectedPalette, applyProjectPalette);
+  const applyProjectLanguage = (value) => {
     state.projectLang = value;
-    renderSegmented($("#project-language"), "lang", value, () => {});
-  });
+    renderSegmented($("#project-language"), "lang", value, applyProjectLanguage);
+  };
+  renderSegmented($("#project-language"), "lang", state.projectLang, applyProjectLanguage);
   openModal("modal-project");
   setTimeout(() => $("#proj-name").focus(), 60);
 }
@@ -1176,13 +1205,113 @@ function formatVersionDate(id) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Compte / mises à jour                                               */
+/* ------------------------------------------------------------------ */
+
+function openAccount() {
+  $("#acc-current").textContent = state.env?.version ? `v${state.env.version}` : "—";
+  const backend = state.settings?.backend || "api";
+  $("#acc-backend").textContent = backend === "opencode" ? "OpenCode local" : t("apiBackend");
+  $("#acc-model").textContent = state.settings?.model || "—";
+  $("#acc-effort").textContent = state.settings?.reasoningEffort || "—";
+  renderUpdateStatus();
+  openModal("modal-account");
+}
+
+function renderUpdateStatus(failed = false) {
+  const status = $("#update-status");
+  const install = $("#btn-install-update");
+  const notes = $("#update-notes");
+  if (!status) return;
+  status.classList.remove("ok", "available");
+  notes.hidden = true;
+  install.hidden = true;
+
+  if (failed) {
+    status.textContent = t("updateCheckFailed");
+    return;
+  }
+  if (!state.update) {
+    status.textContent = t("updatesHint");
+    return;
+  }
+  if (state.update.available) {
+    status.classList.add("available");
+    status.textContent = `${t("updateAvailable")} · v${state.update.version}`;
+    if (state.update.notes) {
+      notes.textContent = state.update.notes;
+      notes.hidden = false;
+    }
+    install.hidden = false;
+    install.textContent = state.update.canAutoInstall ? t("installUpdate") : t("downloadUpdate");
+  } else {
+    status.classList.add("ok");
+    status.textContent = t("upToDate");
+  }
+}
+
+async function checkUpdates(silent = false) {
+  const button = $("#btn-check-update");
+  if (button) {
+    button.disabled = true;
+    button.textContent = t("checking");
+  }
+  try {
+    const info = await invoke("check_update");
+    state.update = info;
+    renderUpdateStatus();
+    const badge = $("#update-badge");
+    if (badge) badge.hidden = !info.available;
+    if (!silent) toast(info.available ? `${t("updateAvailable")} · v${info.version}` : t("upToDate"));
+  } catch (error) {
+    state.update = null;
+    if (silent) {
+      renderUpdateStatus();
+    } else {
+      renderUpdateStatus(true);
+      toast(String(error), true);
+    }
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = t("checkUpdates");
+    }
+  }
+}
+
+async function installUpdate() {
+  if (!state.update?.available) return;
+  if (!state.update.canAutoInstall) {
+    await invoke("open_url", {
+      url: "https://github.com/unstasium/affiche-studio/releases/latest",
+    }).catch((error) => toast(String(error), true));
+    return;
+  }
+  const button = $("#btn-install-update");
+  button.disabled = true;
+  $("#update-status").textContent = t("updateStarted");
+  try {
+    await invoke("install_update");
+    $("#update-status").textContent = t("updateReady");
+    toast(t("updateReady"));
+  } catch (error) {
+    $("#update-status").textContent = t("updateFailed");
+    toast(String(error), true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Settings                                                            */
 /* ------------------------------------------------------------------ */
 
 function openSettings() {
   const settings = state.settings || {};
+  state.backend = settings.backend || "api";
   $("#set-base-url").value = settings.baseUrl || "https://api.openai.com/v1";
   $("#set-model").value = settings.model || "gpt-4o-mini";
+  $("#set-opencode-model").value = state.backend === "opencode" ? settings.model || "" : "";
   $("#set-api-key").value = "";
   $("#set-remember").checked = Boolean(settings.rememberKey);
   $("#set-reasoning").value = settings.reasoningEffort || "";
@@ -1190,7 +1319,26 @@ function openSettings() {
   renderThemeSegments();
   renderAccentDots();
   renderLanguageSegments();
+  renderBackendSegments();
   openModal("modal-settings");
+}
+
+function renderBackendSegments() {
+  const apply = () => {
+    $$("#set-backend button").forEach((button) => {
+      button.classList.toggle("active", button.dataset.backend === state.backend);
+    });
+    $("#api-fields").hidden = state.backend !== "api";
+    $("#opencode-fields").hidden = state.backend !== "opencode";
+    $("#btn-clear-key").hidden = state.backend !== "api";
+  };
+  $$("#set-backend button").forEach((button) => {
+    button.onclick = () => {
+      state.backend = button.dataset.backend;
+      apply();
+    };
+  });
+  apply();
 }
 
 function renderThemeSegments() {
@@ -1240,13 +1388,21 @@ async function saveSettings(event) {
   const button = event.submitter;
   button.disabled = true;
   try {
+    const backend = state.backend || "api";
     const apiKey = $("#set-api-key").value.trim();
+    const model = backend === "api"
+      ? $("#set-model").value.trim()
+      : $("#set-opencode-model").value.trim();
+    const baseUrl = backend === "api"
+      ? $("#set-base-url").value.trim()
+      : (state.settings?.baseUrl || "https://api.openai.com/v1");
     state.settings = await invoke("save_settings", {
-      baseUrl: $("#set-base-url").value.trim(),
-      model: $("#set-model").value.trim(),
-      apiKey: apiKey || null,
-      rememberKey: $("#set-remember").checked,
+      baseUrl,
+      model,
+      apiKey: backend === "api" ? apiKey || null : null,
+      rememberKey: backend === "api" ? $("#set-remember").checked : false,
       reasoningEffort: $("#set-reasoning").value || null,
+      backend,
     });
     localStorage.setItem("as.lang", state.lang);
     localStorage.setItem("as.theme", state.theme);
@@ -1270,14 +1426,16 @@ async function saveSettings(event) {
 function openMeta() {
   if (!state.project) return;
   $("#meta-name").value = state.project.name;
-  renderSegmented($("#meta-language"), "lang", state.project.language, (value) => {
+  const applyMetaLanguage = (value) => {
     state.project.language = value;
-    renderSegmented($("#meta-language"), "lang", value, () => {});
-  });
-  renderPaletteRow($("#meta-palettes"), state.project.palette, (colors) => {
+    renderSegmented($("#meta-language"), "lang", value, applyMetaLanguage);
+  };
+  renderSegmented($("#meta-language"), "lang", state.project.language, applyMetaLanguage);
+  const applyMetaPalette = (colors) => {
     state.project.palette = colors;
-    renderPaletteRow($("#meta-palettes"), colors, () => {});
-  });
+    renderPaletteRow($("#meta-palettes"), colors, applyMetaPalette);
+  };
+  renderPaletteRow($("#meta-palettes"), state.project.palette, applyMetaPalette);
   openModal("modal-meta");
 }
 
@@ -1448,6 +1606,14 @@ function toast(message, isError = false, path = null) {
 /* ------------------------------------------------------------------ */
 
 function bindEvents() {
+  $("#btn-account").addEventListener("click", openAccount);
+  $("#btn-check-update").addEventListener("click", () => checkUpdates(false));
+  $("#btn-install-update").addEventListener("click", installUpdate);
+  $$("[data-url]").forEach((button) => {
+    button.addEventListener("click", () =>
+      invoke("open_url", { url: button.dataset.url }).catch((error) => toast(String(error), true))
+    );
+  });
   $("#btn-new").addEventListener("click", openNewProject);
   $("#btn-new-2").addEventListener("click", openNewProject);
   $("#btn-templates").addEventListener("click", openTemplates);

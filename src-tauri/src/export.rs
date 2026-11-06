@@ -210,3 +210,31 @@ pub fn reveal(path: &Path) -> Result<(), String> {
         .map(|_| ())
         .map_err(|e| e.to_string())
 }
+
+
+#[cfg(target_os = "linux")]
+pub fn open_url(url: &str) -> Result<(), String> {
+    Command::new("xdg-open")
+        .arg(url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(target_os = "macos")]
+pub fn open_url(url: &str) -> Result<(), String> {
+    Command::new("open")
+        .arg(url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(windows)]
+pub fn open_url(url: &str) -> Result<(), String> {
+    Command::new("cmd")
+        .args(["/C", "start", "", url])
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}

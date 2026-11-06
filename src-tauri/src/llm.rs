@@ -1,5 +1,9 @@
 use futures_util::StreamExt;
 use serde_json::{json, Value};
+use std::process::Stdio;
+use std::time::Duration;
+use tokio::io::AsyncWriteExt;
+use tokio::process::Command;
 
 use crate::document::Document;
 use crate::project::ProjectMeta;
@@ -255,7 +259,11 @@ where
         return Err("Le modèle n'a renvoyé aucun contenu.".into());
     }
 
-    let payload = extract_json(&accumulated);
+    parse_document(&accumulated)
+}
+
+fn parse_document(raw: &str) -> Result<Document, String> {
+    let payload = extract_json(raw);
     let value: Value = serde_json::from_str(&payload)
         .map_err(|e| format!("Le modèle n'a pas renvoyé un JSON valide : {e}"))?;
     let value = value.get("document").cloned().unwrap_or(value);
@@ -267,4 +275,143 @@ where
         return Err("Le modèle n'a produit aucun calque. Reformulez le brief.".into());
     }
     Ok(document)
+}
+
+pub fn build_cli_prompt(messages: &[Value]) -> String {
+    messages
+        .iter()
+        .filter_map(|message| {
+            let role = message["role"].as_str()?;
+            let content = message["content"].as_str()?;
+            Some(format!("### {role}\n{content}"))
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+fn model_with_variant(model: &str, effort: Option<&str>) -> String {
+    let model = model.trim();
+    match effort {
+        Some(effort) if !effort.trim().is_empty() && !model.contains('#') => {
+            format!("{model}#{}", effort.trim())
+        }
+        _ => model.to_string(),
+    }
+}
+
+pub async fn generate_via_opencode(
+    model: &str,
+    effort: Option<&str>,
+    prompt: &str,
+) -> Result<Document, String> {
+    let model = model_with_variant(model, effort);
+    let mut child = Command::new("opencode")
+        .arg("run")
+        .arg("--format")
+        .arg("json")
+        .arg("--model")
+        .arg(&model)
+        .arg("--auto")
+        .arg("--agent")
+        .arg("plan")
+        .current_dir({
+            let dir = std::env::temp_dir().join("affiche-studio-opencode");
+            let _ = std::fs::create_dir_all(&dir);
+            dir
+        })
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|e| {
+            format!("Impossible de lancer `opencode` : {e}. Installez OpenCode et connectez un provider.")
+        })?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(prompt.as_bytes())
+            .await
+            .map_err(|e| format!("Envoi du prompt à OpenCode impossible : {e}"))?;
+    }
+
+    let output = tokio::time::timeout(Duration::from_secs(300), child.wait_with_output())
+        .await
+        .map_err(|_| "OpenCode a dépassé 5 minutes. Réessayez avec un modèle plus rapide.".to_string())?
+        .map_err(|e| format!("OpenCode a échoué : {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "OpenCode a renvoyé une erreur : {}",
+            stderr.chars().take(800).collect::<String>()
+        ));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut text = String::new();
+    for line in stdout.lines() {
+        let Ok(value) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        if value["type"] == "text" {
+            if let Some(part) = value["part"]["text"].as_str() {
+                text.push_str(part);
+            }
+        }
+    }
+
+    if text.trim().is_empty() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "OpenCode n'a renvoyé aucun texte. {}",
+            stderr.chars().take(500).collect::<String>()
+        ));
+    }
+
+    parse_document(&text)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::project::ProjectMeta;
+
+    #[tokio::test]
+    #[ignore]
+    async fn opencode_cli_document_smoke() {
+        let meta = ProjectMeta {
+            version: 2,
+            id: "test".into(),
+            name: "Test".into(),
+            width: 1080,
+            height: 1920,
+            language: "fr".into(),
+            palette: vec![
+                "#0b0b0e".into(),
+                "#f3f3fc".into(),
+                "#cd4c51".into(),
+                "#843537".into(),
+                "#8a8a94".into(),
+            ],
+            created_at: String::new(),
+            updated_at: String::new(),
+        };
+        let document = Document::default();
+        let messages = build_messages(
+            &meta,
+            Some(&document),
+            &[],
+            &[],
+            "Crée une affiche simple avec un grand titre et un fond sombre.",
+            true,
+        );
+        let prompt = build_cli_prompt(&messages);
+        let result =
+            generate_via_opencode("opencode-go/deepseek-v4.1-flash", Some("low"), &prompt).await;
+        assert!(result.is_ok(), "{:?}", result.err());
+        let generated = result.unwrap();
+        assert!(!generated.layers.is_empty(), "aucun calque généré");
+    }
 }

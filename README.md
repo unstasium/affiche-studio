@@ -8,14 +8,46 @@ Générateur d'affiches assisté par IA. Vous importez vos images, vous décrive
 
 Les générateurs d'images produisent des visuels impossibles à retoucher. Affiche Studio produit du code : chaque titre, chaque marge, chaque couleur reste modifiable, et le rendu final est net à n'importe quelle taille.
 
-## Fonctionnalités (v1.0)
+## Fonctionnalités (v2.0)
 
-- Projets locaux avec formats Story, Carré, A4 et A3 (ou dimensions personnalisées)
-- Import d'images, logos et polices dans le projet
-- Génération en streaming depuis n'importe quelle API compatible OpenAI
-- Aperçu live de l'affiche générée
-- Export PNG (rendu par Chrome/Chromium/Edge) et HTML autonome
+- Éditeur de **calques** : texte, image, forme, déplacement, redimensionnement, rotation
+- Affiche au centre, projets à gauche, chat IA + calques + style à droite
+- Thèmes sombre/clair avec accents (violet `#7C3AED` par défaut) et palettes d'affiche
+- Interface **FR / EN / ES** à chaud
+- Formats en sélecteur visuel : réseaux sociaux, impression, web, personnalisé
+- Backend **API compatible OpenAI** ou **OpenCode local** (CLI)
+- Templates, palette de commandes (Ctrl/Cmd+K), duplication, groupes, versions, undo/redo
+- Export **PNG ×1/×2**, **PDF** et **HTML** autonome
+- Page **Compte** avec vérification des mises à jour GitHub
 - Clé API optionnellement mémorisée (fichier de configuration en `0600`)
+
+## Backend OpenCode local
+
+Si l'API d'inférence renvoie `402` alors que l'abonnement OpenCode fonctionne,
+choisis **OpenCode local** dans les réglages :
+
+- Fournisseur : `OpenCode local`
+- Modèle : `opencode-go/deepseek-v4.1-flash`
+- Effort : `low`
+
+L'app lance `opencode run --format json --agent plan --model
+"opencode-go/deepseek-v4.1-flash#low"` et lit la réponse. Aucune clé API n'est
+nécessaire : la CLI utilise la session OpenCode déjà connectée. L'agent `plan`
+est en lecture seule.
+
+## Mises à jour
+
+La page **Compte** vérifie les releases GitHub (canal stable) et affiche la
+version installée, les notes de version et un bouton de mise à jour.
+
+- **AppImage** : installation automatique signée (Tauri updater).
+- **`.deb`**, **Windows**, **macOS** : l'app propose le téléchargement de la
+  release ; macOS nécessitera une signature Apple pour l'auto-update.
+- Les releases doivent être **publiées** (pas en draft) et contenir
+  `latest.json` + les paquets signés.
+- Secrets GitHub requis : `TAURI_SIGNING_PRIVATE_KEY` et
+  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. La clé publique est dans
+  `src-tauri/tauri.conf.json` (`plugins.updater.pubkey`).
 
 ## Configuration API
 
@@ -54,6 +86,9 @@ npm run build    # bundles dans src-tauri/target/release/bundle
 Le frontend est en HTML/CSS/JS pur, sans bundler : `dist/` est servi tel quel par Tauri.
 
 ## Distribution
+
+La v2 ignore volontairement les projets HTML de la v1 : ils ne sont pas listés
+dans l'interface.
 
 Le workflow `.github/workflows/release.yml` construit, sur tag `v*` :
 

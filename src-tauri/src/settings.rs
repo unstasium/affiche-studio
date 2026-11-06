@@ -2,6 +2,10 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
+fn default_backend() -> String {
+    "api".to_string()
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
@@ -11,6 +15,8 @@ pub struct Settings {
     pub api_key: String,
     pub remember_key: bool,
     pub reasoning_effort: Option<String>,
+    #[serde(default = "default_backend")]
+    pub backend: String,
 }
 
 impl Default for Settings {
@@ -21,6 +27,7 @@ impl Default for Settings {
             api_key: String::new(),
             remember_key: false,
             reasoning_effort: None,
+            backend: default_backend(),
         }
     }
 }
@@ -33,6 +40,7 @@ pub struct SettingsView {
     pub has_key: bool,
     pub remember_key: bool,
     pub reasoning_effort: Option<String>,
+    pub backend: String,
 }
 
 impl Settings {
@@ -43,6 +51,7 @@ impl Settings {
             has_key: !self.api_key.is_empty(),
             remember_key: self.remember_key,
             reasoning_effort: self.reasoning_effort.clone(),
+            backend: self.backend.clone(),
         }
     }
 
@@ -82,6 +91,7 @@ impl Settings {
             "model": self.model,
             "rememberKey": self.remember_key,
             "reasoningEffort": self.reasoning_effort,
+            "backend": self.backend,
         });
         fs::write(
             config_dir.join("settings.json"),
