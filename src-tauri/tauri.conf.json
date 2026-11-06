@@ -42,7 +42,8 @@
       "deb": {
         "depends": []
       }
-    }
+    },
+    "createUpdaterArtifacts": true
   },
   "plugins": {
     "updater": {
