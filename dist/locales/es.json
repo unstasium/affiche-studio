@@ -268,5 +268,8 @@
   "themeLight": "Claro",
   "themeDark": "Oscuro",
   "chatHintSelection": "La IA editará la capa seleccionada.",
-  "layerNameLabel": "Nombre"
+  "layerNameLabel": "Nombre",
+  "dropImages": "Suelta tus imágenes aquí",
+  "helpTip5": "Ctrl/Cmd + rueda para hacer zoom en el lienzo.",
+  "imagesImported": "{count} imagen(es) importada(s)"
 }

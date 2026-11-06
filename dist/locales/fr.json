@@ -268,5 +268,8 @@
   "themeLight": "Clair",
   "themeDark": "Sombre",
   "chatHintSelection": "L'IA modifiera le calque sélectionné.",
-  "layerNameLabel": "Nom"
+  "layerNameLabel": "Nom",
+  "dropImages": "Déposez vos images ici",
+  "helpTip5": "Ctrl/Cmd + molette pour zoomer sur le canvas.",
+  "imagesImported": "{count} image(s) importée(s)"
 }

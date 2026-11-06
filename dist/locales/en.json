@@ -268,5 +268,8 @@
   "themeLight": "Light",
   "themeDark": "Dark",
   "chatHintSelection": "The AI will edit the selected layer.",
-  "layerNameLabel": "Name"
+  "layerNameLabel": "Name",
+  "dropImages": "Drop your images here",
+  "helpTip5": "Ctrl/Cmd + wheel to zoom the canvas.",
+  "imagesImported": "{count} image(s) imported"
 }

@@ -435,6 +435,34 @@ function renderLayers() {
     const name = document.createElement("span");
     name.className = "layer-name";
     name.textContent = layer.name;
+    name.addEventListener("dblclick", (event) => {
+      event.stopPropagation();
+      const input = document.createElement("input");
+      input.className = "layer-name-input";
+      input.value = layer.name;
+      name.replaceWith(input);
+      input.focus();
+      input.select();
+      const commit = () => {
+        const value = input.value.trim();
+        input.replaceWith(name);
+        if (value && value !== layer.name) {
+          state.editor.updateLayer(layer.id, { name: value });
+        } else {
+          name.textContent = layer.name;
+        }
+      };
+      input.addEventListener("blur", commit);
+      input.addEventListener("keydown", (keyEvent) => {
+        if (keyEvent.key === "Enter") {
+          keyEvent.preventDefault();
+          input.blur();
+        } else if (keyEvent.key === "Escape") {
+          input.value = layer.name;
+          input.blur();
+        }
+      });
+    });
 
     const actions = document.createElement("span");
     actions.className = "layer-actions";
@@ -456,10 +484,6 @@ function renderLayers() {
 
     row.append(type, name, actions);
     row.addEventListener("click", () => state.editor.select([layer.id]));
-    row.addEventListener("dblclick", () => {
-      const value = prompt(t("projectName"), layer.name);
-      if (value) state.editor.updateLayer(layer.id, { name: value });
-    });
     row.addEventListener("dragstart", (event) => {
       event.dataTransfer.setData("text/plain", layer.id);
     });
@@ -1945,6 +1969,40 @@ function bindEvents() {
     state.zoomed = true;
     state.editor.setZoom(1);
   });
+  const stage = $("#stage");
+  const showDrop = (visible) => {
+    const hint = $("#drop-hint");
+    if (hint) hint.hidden = !visible;
+  };
+  stage.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    showDrop(true);
+  });
+  stage.addEventListener("dragleave", (event) => {
+    if (!stage.contains(event.relatedTarget)) showDrop(false);
+  });
+  stage.addEventListener("drop", async (event) => {
+    event.preventDefault();
+    showDrop(false);
+    const files = [...(event.dataTransfer?.files || [])].filter((file) => file.type.startsWith("image/"));
+    if (!files.length) return;
+    try {
+      await importFiles(files, true);
+      toast(t("imagesImported", { count: files.length }));
+    } catch (error) {
+      toast(String(error), true);
+    }
+  });
+  stage.addEventListener(
+    "wheel",
+    (event) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      state.zoomed = true;
+      state.editor.setZoom(state.editor.scale * (event.deltaY < 0 ? 1.08 : 0.92));
+    },
+    { passive: false }
+  );
   $("#canvas").addEventListener("contextmenu", openContextMenu);
   document.addEventListener("click", (event) => {
     if (!event.target.closest?.("#context-menu")) hideContextMenu();

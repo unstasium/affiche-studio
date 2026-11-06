@@ -1,7 +1,7 @@
 {
   "name": "affiche-studio",
   "private": true,
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Générateur d'affiches assisté par IA",
   "scripts": {
     "dev": "tauri dev",
