@@ -8,7 +8,7 @@ Générateur d'affiches assisté par IA. Vous importez vos images, vous décrive
 
 Les générateurs d'images produisent des visuels impossibles à retoucher. Affiche Studio produit du code : chaque titre, chaque marge, chaque couleur reste modifiable, et le rendu final est net à n'importe quelle taille.
 
-## Fonctionnalités (v0.1)
+## Fonctionnalités (v1.0)
 
 - Projets locaux avec formats Story, Carré, A4 et A3 (ou dimensions personnalisées)
 - Import d'images, logos et polices dans le projet
