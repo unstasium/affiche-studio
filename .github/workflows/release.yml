@@ -34,25 +34,27 @@ jobs:
               "",
               "Voir le [README](https://github.com/unstasium/affiche-studio#readme) pour la configuration de l'API."
             ].join("\n");
-            try {
-              const { data } = await github.rest.repos.getReleaseByTag({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag,
-              });
-              return data.id;
-            } catch (error) {
-              const { data } = await github.rest.repos.createRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                tag_name: tag,
-                name: `Affiche Studio ${tag}`,
-                body,
-                draft: true,
-                prerelease: false,
-              });
-              return data.id;
+            // getReleaseByTag ne renvoie pas les drafts : on liste les releases
+            // pour réutiliser un draft existant et éviter les doublons de tag.
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+            const existing = releases.find((release) => release.tag_name === tag);
+            if (existing) {
+              return existing.id;
             }
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: `Affiche Studio ${tag}`,
+              body,
+              draft: true,
+              prerelease: false,
+            });
+            return data.id;
 
   build:
     needs: create-release
